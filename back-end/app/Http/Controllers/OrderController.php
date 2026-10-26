@@ -32,12 +32,16 @@ class OrderController extends Controller
         }
 
         if ($user->role === 'operator') {
-            // 窗口代客购票：提交即支付出票（需求文档 3.2）
+            // 窗口代客购票：提交即支付出票（需求文档 3.2），登记线下支付方式（现金 / 扫码）
             $operator = \App\Models\Operator::where('user_id', $user->id)->firstOrFail();
             $visitorName = $request->input('visitorName');
+            $payMethod = $request->input('payMethod');
+            if ($payMethod !== null && !in_array($payMethod, ['现金', '扫码'], true)) {
+                throw new ApiException('支付方式仅支持现金或扫码');
+            }
             $visitor = $this->ensureVisitor($visitorName);
             $order = (new \App\Support\TicketingService())->createOrder(
-                $visitor, $data['typeId'], $data['visitDate'], $data['quantity'], '窗口', $operator,
+                $visitor, $data['typeId'], $data['visitDate'], $data['quantity'], '窗口', $operator, $payMethod,
             );
 
             return ok(['order' => \App\Support\Formatter::order($order)], '窗口购票成功，已出票');

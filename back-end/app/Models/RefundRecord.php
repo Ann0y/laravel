@@ -17,7 +17,12 @@ class RefundRecord extends Model
 
     protected function casts(): array
     {
-        return ['refund_amount' => 'float'];
+        return [
+            'refund_amount' => 'float',
+            'apply_time' => 'datetime',
+            'audit_time' => 'datetime',
+            'create_time' => 'datetime',
+        ];
     }
 
     public function ticket() { return $this->belongsTo(Ticket::class, 'ticket_id'); }

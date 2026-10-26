@@ -18,7 +18,8 @@ class SaleOrder extends Model
 
     protected function casts(): array
     {
-        return ['unit_price' => 'float', 'total_amount' => 'float', 'visit_date' => 'date:Y-m-d'];
+        return ['unit_price' => 'float', 'total_amount' => 'float', 'visit_date' => 'date:Y-m-d',
+            'create_time' => 'datetime', 'pay_time' => 'datetime', 'cancel_time' => 'datetime', 'refund_time' => 'datetime'];
     }
 
     public function visitor() { return $this->belongsTo(Visitor::class); }

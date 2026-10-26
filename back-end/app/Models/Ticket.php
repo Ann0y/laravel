@@ -17,7 +17,8 @@ class Ticket extends Model
 
     protected function casts(): array
     {
-        return ['unit_price' => 'float', 'visit_date' => 'date:Y-m-d'];
+        return ['unit_price' => 'float', 'visit_date' => 'date:Y-m-d',
+            'check_time' => 'datetime', 'create_time' => 'datetime'];
     }
 
     public function order() { return $this->belongsTo(SaleOrder::class, 'order_id'); }

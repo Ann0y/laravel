@@ -61,9 +61,9 @@ class TicketingService
     }
 
     /** 提交订单（E1：事务内锁定额度行，校验后占额，防并发超卖） */
-    public function createOrder(Visitor $visitor, string $typeCode, string $visitDate, int $quantity, string $channel, ?Operator $operator = null): SaleOrder
+    public function createOrder(Visitor $visitor, string $typeCode, string $visitDate, int $quantity, string $channel, ?Operator $operator = null, ?string $payMethod = null): SaleOrder
     {
-        return DB::transaction(function () use ($visitor, $typeCode, $visitDate, $quantity, $channel, $operator) {
+        return DB::transaction(function () use ($visitor, $typeCode, $visitDate, $quantity, $channel, $operator, $payMethod) {
             $type = TicketType::where('type_code', $typeCode)->where('del_flag', 0)->first();
             $this->failUnless($type && $type->status === '在售', '该票种已停售，请重新选择');
 
@@ -90,7 +90,8 @@ class TicketingService
                 'unit_price' => $type->price,
                 'total_amount' => $type->price * $quantity,
                 'channel' => $channel,
-                'pay_method' => $channel === '窗口' ? '线下' : null,
+                // 窗口渠道登记线下支付方式（现金 / 扫码，F06）；线上渠道出票时补记模拟支付
+                'pay_method' => $channel === '窗口' ? ($payMethod ?: '线下') : null,
                 'operator_id' => $operator?->id,
                 'status' => '待支付',
             ]);
@@ -231,9 +232,11 @@ class TicketingService
                 $ticket->status = '已退款';
                 $ticket->save();
 
-                $stock = TicketStock::join('open_day', 'open_day.id', '=', 'ticket_stock.open_day_id')
-                    ->where('open_day.open_date', $order->visit_date->toDateString())
-                    ->where('ticket_stock.type_id', $order->type_id)
+                // 定位额度行：不与 open_day join（两表 id/status 等列名冲突会覆盖主键），
+                // 与 cancelOrder 口径一致：先查开放日 id 再锁额度行
+                $openDayId = OpenDay::where('open_date', $order->visit_date->toDateString())->value('id');
+                $stock = TicketStock::where('open_day_id', $openDayId)
+                    ->where('type_id', $order->type_id)
                     ->lockForUpdate()->first();
                 if ($stock) {
                     $stock->sold_count = max(0, $stock->sold_count - 1);

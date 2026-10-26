@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import { useTicketingStore } from './stores/ticketing'
@@ -7,6 +7,33 @@ import { useTicketingStore } from './stores/ticketing'
 const auth = useAuthStore()
 const ticketing = useTicketingStore()
 const router = useRouter()
+
+// 按登录角色渲染导航（需求文档第 2 章：游客端 / 票务员端 / 管理端入口）
+const links = computed(() => {
+  const role = auth.user?.role
+  if (role === 'operator') {
+    return [
+      { to: '/operator', label: '工作台' },
+      { to: '/operator/sell', label: '现场售票' },
+      { to: '/operator/check', label: '检票核销' },
+      { to: '/operator/orders', label: '售票记录' },
+    ]
+  }
+  if (role === 'admin') {
+    return [
+      { to: '/admin', label: '工作台' },
+      { to: '/admin/manage', label: '票务管理' },
+      { to: '/admin/orders', label: '订单门票' },
+      { to: '/admin/refunds', label: '退票审核' },
+      { to: '/admin/users', label: '用户管理' },
+    ]
+  }
+  return [
+    { to: '/', label: '首页' },
+    { to: '/buy', label: '在线购票' },
+    { to: '/orders', label: '我的订单' },
+  ]
+})
 
 onMounted(() => {
   // 公开数据（景区/票种/额度）加载失败时页面显示兜底，不打断渲染
@@ -27,9 +54,14 @@ function onLogout() {
           青岚谷<span class="brand-sub">售票中心</span>
         </RouterLink>
         <nav class="nav-links">
-          <RouterLink to="/">首页</RouterLink>
-          <RouterLink to="/buy">在线购票</RouterLink>
-          <RouterLink to="/orders">我的订单</RouterLink>
+          <!-- 以当前路径精确比对高亮，避免父路径（/operator 与 /operator/sell）同时高亮 -->
+          <RouterLink
+            v-for="l in links"
+            :key="l.to"
+            :to="l.to"
+            :class="{ active: $route.path === l.to }"
+            >{{ l.label }}</RouterLink
+          >
         </nav>
         <div class="nav-auth">
           <template v-if="auth.user">
@@ -93,17 +125,20 @@ function onLogout() {
   display: flex;
   gap: 24px;
   flex: 1;
+  overflow-x: auto;
 }
 
 .nav-links a {
   color: var(--ink-2);
   font-size: 15px;
   transition: color 0.2s ease;
+  white-space: nowrap;
 }
 
 .nav-links a:hover,
-.nav-links a.router-link-active {
+.nav-links a.active {
   color: var(--ink);
+  font-weight: 550;
 }
 
 .nav-auth {
