@@ -9,7 +9,8 @@ const ticketing = useTicketingStore()
 const router = useRouter()
 
 onMounted(() => {
-  ticketing.ensure()
+  // 公开数据（景区/票种/额度）加载失败时页面显示兜底，不打断渲染
+  ticketing.ensure().catch(() => {})
 })
 
 function onLogout() {

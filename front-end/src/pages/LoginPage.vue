@@ -13,17 +13,19 @@ const password = ref('')
 const name = ref('')
 const confirm = ref('')
 const error = ref('')
+const submitting = ref(false)
 
 async function submit() {
   error.value = ''
+  submitting.value = true
   try {
     if (mode.value === 'login') {
-      auth.login(username.value.trim(), password.value)
+      await auth.login(username.value.trim(), password.value)
     } else {
       if (!name.value.trim()) throw new Error('请填写姓名')
       if (password.value.length < 6) throw new Error('密码至少 6 位')
       if (password.value !== confirm.value) throw new Error('两次输入的密码不一致')
-      auth.register({
+      await auth.register({
         username: username.value.trim(),
         password: password.value,
         name: name.value.trim(),
@@ -32,6 +34,8 @@ async function submit() {
     router.push(route.query.redirect || '/')
   } catch (e) {
     error.value = e.message
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -92,8 +96,8 @@ function fillDemo() {
             </div>
 
             <p v-if="error" class="err">{{ error }}</p>
-            <button type="submit" class="btn btn-primary btn-block">
-              {{ mode === 'login' ? '登录' : '注册并登录' }}
+            <button type="submit" class="btn btn-primary btn-block" :disabled="submitting">
+              {{ submitting ? '提交中…' : mode === 'login' ? '登录' : '注册并登录' }}
             </button>
           </form>
 

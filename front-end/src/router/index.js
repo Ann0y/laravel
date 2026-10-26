@@ -19,7 +19,7 @@ const router = createRouter({
   scrollBehavior: () => ({ top: 0 }),
 })
 
-// 登录守卫：与需求文档口径一致（Session 登录态；原型以 localStorage 会话代替）
+// 登录守卫：与需求文档口径一致（Session 登录态由后端承载；本地镜像 st_session 供守卫判断）
 router.beforeEach((to) => {
   if (to.meta.auth && !localStorage.getItem('st_session')) {
     return { name: 'login', query: { redirect: to.fullPath } }

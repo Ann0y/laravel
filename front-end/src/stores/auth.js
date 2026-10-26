@@ -1,51 +1,71 @@
 import { defineStore } from 'pinia'
-import { load, save } from '../utils/storage'
+import { api } from '../api'
 
-const USERS_KEY = 'st_users'
 const SESSION_KEY = 'st_session'
 
-// 仅演示用途：口令明文存于 localStorage，真实系统按需求文档使用 BCrypt（第 8 章）
-const seedUsers = [{ username: 'demo', password: '123456', name: '张临风' }]
+// 登录态由后端 Session 承载（Cookie），本地仅镜像一份用于路由守卫
+function persist(user) {
+  this.user = user
+  if (user) localStorage.setItem(SESSION_KEY, JSON.stringify(user))
+  else localStorage.removeItem(SESSION_KEY)
+}
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
-    users: load(USERS_KEY, seedUsers),
-    user: load(SESSION_KEY, null),
+    user: null,
+    ready: false, // 是否已完成一次会话探测
+    booted: false,
   }),
   getters: {
     isLogin: (s) => !!s.user,
   },
   actions: {
-    persistUsers() {
-      save(USERS_KEY, this.users)
+    // 应用启动时探测会话：有会话则恢复用户信息，无则清空镜像
+    async init() {
+      if (this.booted) return
+      this.booted = true
+      try {
+        const user = await api('/auth/me')
+        persist.call(this, user)
+      } catch (e) {
+        if (e.status === 401) persist.call(this, null)
+      } finally {
+        this.ready = true
+      }
     },
-    login(username, password) {
-      const u = this.users.find((x) => x.username === username)
-      if (!u || u.password !== password) throw new Error('用户名或密码不正确')
-      this.user = { username: u.username, name: u.name, role: 'visitor' }
-      save(SESSION_KEY, this.user)
-      return this.user
+    async login(username, password) {
+      const user = await api('/auth/login', {
+        method: 'POST',
+        body: { username, password },
+      })
+      persist.call(this, user)
+      return user
     },
-    register({ username, password, name }) {
-      const un = username.trim()
-      if (this.users.some((x) => x.username === un)) throw new Error('该用户名已被注册')
-      const u = { username: un, password, name: name.trim() }
-      this.users.push(u)
-      this.persistUsers()
-      this.user = { username: u.username, name: u.name, role: 'visitor' }
-      save(SESSION_KEY, this.user)
-      return this.user
+    async register({ username, password, name }) {
+      const user = await api('/auth/register', {
+        method: 'POST',
+        body: { username, password, name },
+      })
+      persist.call(this, user)
+      return user
     },
-    logout() {
-      this.user = null
-      localStorage.removeItem(SESSION_KEY)
+    async logout() {
+      try {
+        await api('/auth/logout', { method: 'POST' })
+      } catch {
+        // 会话已失效也视为退出成功
+      }
+      persist.call(this, null)
     },
-    changePassword(oldPassword, newPassword) {
-      const u = this.users.find((x) => x.username === this.user?.username)
-      if (!u || u.password !== oldPassword) throw new Error('原密码不正确')
-      if (newPassword.length < 6) throw new Error('新密码至少 6 位')
-      u.password = newPassword
-      this.persistUsers()
+    // 会话在服务端过期时由其他 store 调用
+    forceLogout() {
+      persist.call(this, null)
+    },
+    async changePassword(oldPassword, newPassword) {
+      await api('/auth/password', {
+        method: 'PUT',
+        body: { oldPassword, newPassword },
+      })
     },
   },
 })

@@ -12,6 +12,7 @@ const router = useRouter()
 const stage = ref('form') // form | pay | done
 const order = ref(null)
 const error = ref('')
+const submitting = ref(false)
 
 function defaultType() {
   const q = route.query.type
@@ -76,34 +77,39 @@ function inc() {
   quantity.value = Math.min(maxQty.value || 1, quantity.value + 1)
 }
 
-function submitOrder() {
+async function submitOrder() {
   error.value = ''
+  submitting.value = true
   try {
-    order.value = store.createOrder(typeId.value, visitDate.value, quantity.value, authName())
+    order.value = await store.createOrder(typeId.value, visitDate.value, quantity.value)
     stage.value = 'pay'
   } catch (e) {
     error.value = e.message
+  } finally {
+    submitting.value = false
   }
 }
 
-function authName() {
+async function payNow() {
+  error.value = ''
   try {
-    const s = JSON.parse(localStorage.getItem('st_session') || 'null')
-    return s?.name || '游客'
-  } catch {
-    return '游客'
+    order.value = await store.pay(order.value.id)
+    stage.value = 'done'
+  } catch (e) {
+    error.value = e.message
+    stage.value = 'form'
   }
 }
 
-function payNow() {
-  store.pay(order.value.id)
-  stage.value = 'done'
-}
-
-function cancelOrder() {
-  store.cancel(order.value.id)
-  order.value = null
-  stage.value = 'form'
+async function cancelOrder() {
+  error.value = ''
+  try {
+    await store.cancel(order.value.id)
+    order.value = null
+    stage.value = 'form'
+  } catch (e) {
+    error.value = e.message
+  }
 }
 </script>
 
@@ -208,10 +214,10 @@ function cancelOrder() {
           </p>
           <button
             class="btn btn-primary btn-block"
-            :disabled="!visitDate || remaining < quantity || quantity < 1"
+            :disabled="!visitDate || remaining < quantity || quantity < 1 || submitting"
             @click="submitOrder"
           >
-            提交订单
+            {{ submitting ? '提交中…' : '提交订单' }}
           </button>
           <p class="field-text">
             提交后可在「我的订单」中继续支付或取消；取消订单将自动回补当日额度。

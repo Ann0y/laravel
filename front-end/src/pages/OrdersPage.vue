@@ -10,6 +10,11 @@ const store = useTicketingStore()
 const FILTERS = ['全部', '待支付', '已支付', '退款中', '已退款', '已取消', '已使用']
 const filter = ref('全部')
 
+const actionError = ref('')
+
+// 进入页面刷新一次订单与额度（下单/审核变化后保持同步）
+store.refresh().catch(() => {})
+
 const orders = computed(() =>
   filter.value === '全部' ? store.orders : store.orders.filter((o) => o.status === filter.value),
 )
@@ -61,16 +66,43 @@ function startRefund(no) {
   refundError.value = ''
 }
 
-function submitRefund() {
+async function submitRefund() {
   if (!reason.value.trim()) {
     refundError.value = '请填写退票原因'
     return
   }
   try {
-    store.requestRefund(refundFor.value, reason.value.trim())
+    await store.requestRefund(refundFor.value, reason.value.trim())
     refundFor.value = null
   } catch (e) {
     refundError.value = e.message
+  }
+}
+
+// 支付 / 取消统一异步处理，错误就近展示
+const busyOrder = ref(null)
+
+async function doPay(o) {
+  actionError.value = ''
+  busyOrder.value = o.id
+  try {
+    await store.pay(o.id)
+  } catch (e) {
+    actionError.value = e.status === 401 ? '登录已过期，请重新登录后再支付' : e.message
+  } finally {
+    busyOrder.value = null
+  }
+}
+
+async function doCancel(o) {
+  actionError.value = ''
+  busyOrder.value = o.id
+  try {
+    await store.cancel(o.id)
+  } catch (e) {
+    actionError.value = e.status === 401 ? '登录已过期，请重新登录后再操作' : e.message
+  } finally {
+    busyOrder.value = null
   }
 }
 </script>
@@ -157,13 +189,18 @@ function submitRefund() {
                 <span v-if="t.refund" class="field-text">
                   退款申请（{{ t.refund.status }}）：{{ t.refund.reason }}
                 </span>
-                <button
-                  v-if="t.refund && t.refund.status === '待审核'"
-                  class="link"
-                  @click="store.approveRefund(t.ticketNo)"
+                <span
+                  v-if="t.refund && t.refund.auditOpinion"
+                  class="field-text"
                 >
-                  演示：模拟管理员审核通过
-                </button>
+                  审核意见：{{ t.refund.auditOpinion }}
+                </span>
+                <span
+                  v-if="t.refund && t.refund.status === '待审核'"
+                  class="field-text"
+                >
+                  申请已提交，由景区管理员在后台审核，请耐心等待。
+                </span>
               </div>
 
               <div v-if="refundFor === t.ticketNo" class="refund-form">
@@ -187,10 +224,24 @@ function submitRefund() {
         <footer v-if="o.status === '待支付'" class="o-foot">
           <span class="field-text">订单待支付，支付后即刻出票；取消将自动回补当日额度。</span>
           <div class="o-foot-actions">
-            <button class="btn btn-primary btn-sm" @click="store.pay(o.id)">模拟支付</button>
-            <button class="btn btn-ghost btn-sm" @click="store.cancel(o.id)">取消订单</button>
+            <button
+              class="btn btn-primary btn-sm"
+              :disabled="busyOrder === o.id"
+              @click="doPay(o)"
+            >
+              {{ busyOrder === o.id ? '处理中…' : '模拟支付' }}
+            </button>
+            <button
+              class="btn btn-ghost btn-sm"
+              :disabled="busyOrder === o.id"
+              @click="doCancel(o)"
+            >
+              取消订单
+            </button>
           </div>
         </footer>
+
+        <p v-if="actionError && o.status === '待支付'" class="err">{{ actionError }}</p>
       </article>
 
       <p v-if="!orders.length" class="muted no-match">该状态下暂无订单。</p>

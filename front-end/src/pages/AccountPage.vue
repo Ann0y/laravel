@@ -10,18 +10,25 @@ const form = ref({ oldPassword: '', newPassword: '', confirm: '' })
 const error = ref('')
 const success = ref(false)
 
-function submit() {
+async function submit() {
   error.value = ''
   success.value = false
   try {
     if (form.value.newPassword !== form.value.confirm) {
       throw new Error('两次输入的新密码不一致')
     }
-    auth.changePassword(form.value.oldPassword, form.value.newPassword)
+    if (form.value.newPassword.length < 6) {
+      throw new Error('新密码至少 6 位')
+    }
+    await auth.changePassword(form.value.oldPassword, form.value.newPassword)
     form.value = { oldPassword: '', newPassword: '', confirm: '' }
     success.value = true
   } catch (e) {
-    error.value = e.message
+    error.value = e.status === 401 ? '登录已过期，请重新登录' : e.message
+    if (e.status === 401) {
+      await auth.logout()
+      router.push({ name: 'login', query: { redirect: '/account' } })
+    }
   }
 }
 
