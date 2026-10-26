@@ -143,6 +143,26 @@ class OrderController extends Controller
         return ok(['order' => \App\Support\Formatter::order($order)], '订单已取消，当日额度已回补');
     }
 
+    /** 门票改期（游客）：整单未检票门票换游园日，吞吐同一套库存校验 */
+    public function reschedule(Request $request, int $id)
+    {
+        $user = app('authUser');
+        if ($user->role !== 'visitor') {
+            throw new ApiException('仅游客支持门票改期', 403);
+        }
+
+        $data = $request->validate([
+            'visitDate' => 'required|date|after_or_equal:today',
+        ], \App\Http\Controllers\AuthController::messages(), AuthController::attributes());
+
+        $visitor = \App\Models\Visitor::where('user_id', $user->id)->firstOrFail();
+        $order = (new \App\Support\TicketingService())->rescheduleOrder(
+            $visitor, \App\Models\SaleOrder::findOrFail($id), $data['visitDate'],
+        );
+
+        return ok(['order' => \App\Support\Formatter::order($order)], '改期成功，门票已更新至新游园日期');
+    }
+
     private function assertOwn(\App\Models\SaleOrder $order): void
     {
         $user = app('authUser');

@@ -25,6 +25,9 @@ class Ticket extends Model
     public function type() { return $this->belongsTo(TicketType::class, 'type_id'); }
     public function refunds() { return $this->hasMany(RefundRecord::class, 'ticket_id'); }
 
+    /** 游园评价（一票一评，仅已检票可评） */
+    public function review() { return $this->hasOne(TicketReview::class, 'ticket_id'); }
+
     public function latestRefund()
     {
         return $this->hasOne(RefundRecord::class, 'ticket_id')->latestOfMany('id');

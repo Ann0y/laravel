@@ -8,6 +8,7 @@ use App\Http\Controllers\AreaController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\RefundController;
+use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\AdminController;
 
 /*
@@ -23,6 +24,7 @@ Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/logout', [AuthController::class, 'logout']);
 Route::get('/area', [AreaController::class, 'index']);
+Route::get('/reviews', [ReviewController::class, 'index']);   // F16：公开最新游园评价
 Route::get('/enums', fn () => \App\Support\ok([
     'orderStatus' => ['待支付', '已支付', '已使用', '退款中', '已退款', '已取消'],
     'ticketStatus' => ['未检票', '已检票', '已退款', '已过期'],
@@ -43,9 +45,11 @@ Route::middleware('auth.session')->group(function () {
     Route::get('/orders/mine', [OrderController::class, 'myOperated'])->middleware('auth.role:operator');
     Route::post('/orders/{id}/pay', [OrderController::class, 'pay']);
     Route::post('/orders/{id}/cancel', [OrderController::class, 'cancel']);
+    Route::post('/orders/{id}/reschedule', [OrderController::class, 'reschedule']);  // F03 扩展：门票改期
     Route::get('/tickets/order/{orderId}', [TicketController::class, 'byOrder']);
     Route::get('/refunds/mine', [RefundController::class, 'mine']);
     Route::post('/refunds', [RefundController::class, 'requestRefund']);
+    Route::post('/reviews', [ReviewController::class, 'store']);                     // F16：游园评价（已检票门票）
 
     // 票务员
     Route::post('/tickets/check', [TicketController::class, 'check'])->middleware('auth.role:operator');

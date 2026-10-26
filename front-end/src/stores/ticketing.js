@@ -102,6 +102,32 @@ export const useTicketingStore = defineStore('ticketing', {
       })
       await this.loadOrders()
     },
+    // 门票改期（整单未检票门票迁移）：原日回补、新日占额（F03 扩展）
+    async reschedule(orderId, visitDate) {
+      const data = await api(`/orders/${orderId}/reschedule`, {
+        method: 'POST',
+        body: { visitDate },
+      })
+      const o = this.orders.find((x) => x.id === orderId)
+      if (o) {
+        // 本地余量口径同步：旧日回补未检票数，新日占同等数量
+        const moved = o.tickets.filter((t) => t.status === '未检票').length
+        const oldPer = this.stock[o.visitDate]?.per[o.typeId]
+        const newPer = this.stock[visitDate]?.per[o.typeId]
+        if (oldPer) oldPer.sold = Math.max(0, oldPer.sold - moved)
+        if (newPer) newPer.sold = Math.min(newPer.quota, newPer.sold + moved)
+      }
+      this.replaceOrder(data.order)
+      return data.order
+    },
+    // 游园评价（F16：已检票门票一票一评）
+    async submitReview(ticketNo, rating, content) {
+      await api('/reviews', {
+        method: 'POST',
+        body: { ticketNo, rating, content: content || undefined },
+      })
+      await this.loadOrders()
+    },
     // 演示辅助已移除：退票审核由管理员端接口完成（PATCH /api/refunds/{id}/audit）
     replaceOrder(order) {
       const i = this.orders.findIndex((x) => x.id === order.id)

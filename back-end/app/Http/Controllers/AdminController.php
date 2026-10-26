@@ -48,7 +48,7 @@ class AdminController extends Controller
         if ($creating) {
             $rules['password'] = 'required|string|min:6|max:100';
         }
-        $data = $request->validate($rules, AuthController::messages());
+        $data = $request->validate($rules, AuthController::messages(), AuthController::attributes());
 
         $payload = [
             'username' => $data['username'],

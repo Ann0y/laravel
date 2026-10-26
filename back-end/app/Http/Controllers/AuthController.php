@@ -103,4 +103,31 @@ class AuthController extends Controller
     {
         return ['required' => ':attribute 为必填项', 'unique' => '该用户名已被注册', 'min' => ':attribute 至少 :min 位'];
     }
+
+    /** 校验消息中字段名的中文口径（避免英文属性名直达用户） */
+    public static function attributes(): array
+    {
+        return [
+            'ticketNo' => '门票编号',
+            'visitDate' => '游园日期',
+            'typeId' => '票种',
+            'quantity' => '数量',
+            'visitorName' => '游客姓名',
+            'payMethod' => '支付方式',
+            'rating' => '评分',
+            'content' => '评价内容',
+            'reason' => '原因',
+            'opinion' => '审核意见',
+            'username' => '用户名',
+            'password' => '密码',
+            'name' => '姓名',
+            'role' => '角色',
+            'status' => '状态',
+            'price' => '单价',
+            'typeCode' => '票种编码',
+            'typeName' => '票种名称',
+            'quota' => '额度',
+            'capacity' => '园区容量',
+        ];
+    }
 }

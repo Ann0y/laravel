@@ -124,12 +124,30 @@ class DatabaseSeeder extends Seeder
         }
 
         $check = now()->subDay()->setTime(9, 30);
+        $usedTickets = [];
         foreach ([[1, $check], [2, $check->copy()->addMinutes(4)]] as [$i, $time]) {
-            Ticket::create([
+            $usedTickets[] = Ticket::create([
                 'ticket_no' => $this->ticketNo(),
                 'order_id' => $used->id, 'type_id' => $adult->id,
                 'visit_date' => $yesterDay->open_date, 'unit_price' => $adult->price, 'status' => '已检票',
                 'check_time' => $time, 'checker_id' => $opUser->id,
+            ]);
+        }
+
+        // ----------
+        // 6. 游园评价（F16：已检票门票一票一评，首页「游园人说」展示脱敏评价）
+        // ----------
+        $reviewSeeds = [
+            ['rating' => 5, 'content' => '峡谷栈道太出片了，一路走一路拍，水又清又绿，下次带朋友再来。'],
+            ['rating' => 4, 'content' => '森林步道很凉快，指示牌清楚，就是观光车班次略少，值得推荐。'],
+        ];
+        foreach ($usedTickets as $i => $t) {
+            \App\Models\TicketReview::create([
+                'ticket_id' => $t->id,
+                'visitor_id' => $demo->id,
+                'rating' => $reviewSeeds[$i]['rating'],
+                'content' => $reviewSeeds[$i]['content'],
+                'create_time' => $check->copy()->addHours(4)->addMinutes($i * 23),
             ]);
         }
     }

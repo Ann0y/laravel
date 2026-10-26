@@ -1,12 +1,21 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useTicketingStore } from '../stores/ticketing'
 import { useAuthStore } from '../stores/auth'
+import { api } from '../api'
 import { todayStr } from '../mock/seed'
 
 const store = useTicketingStore()
 const auth = useAuthStore()
 const today = computed(() => todayStr())
+
+// 游园评价（F16）：公开接口展示最新评价（昵称脱敏）
+const reviews = ref([])
+onMounted(() => {
+  api('/reviews')
+    .then((d) => (reviews.value = d.list))
+    .catch(() => {})
+})
 
 // 员工（管理员 / 票务员）不在公共首页暴露购票入口：换成本端工作台跳转
 const isVisitor = computed(() => !auth.user || auth.user?.role === 'visitor')
@@ -117,6 +126,25 @@ const stepList = [
       </div>
     </section>
 
+    <!-- 游园人说（F16）：最新游园评价，昵称脱敏 -->
+    <section v-if="reviews.length" class="section container">
+      <h2 class="section-title">游园人说</h2>
+      <p class="section-sub">来自已游园游客的真实反馈（昵称脱敏展示）。</p>
+      <div class="review-grid">
+        <article v-for="r in reviews" :key="r.id" class="review card">
+          <p class="stars num" :aria-label="r.rating + ' 星评价'">
+            {{ '★'.repeat(r.rating) }}<span class="dim">{{ '☆'.repeat(5 - r.rating) }}</span>
+            <span class="stars-val num">{{ r.rating }}.0</span>
+          </p>
+          <p class="r-content">{{ r.content || '（该游客未填写文字评价）' }}</p>
+          <footer class="r-foot">
+            <span class="r-name">{{ r.visitorName }}</span>
+            <span class="r-meta num">{{ r.typeName }} · {{ r.visitDate }}</span>
+          </footer>
+        </article>
+      </div>
+    </section>
+
     <!-- 游园公告 -->
     <section class="section container">
       <h2 class="section-title">游园公告</h2>
@@ -153,6 +181,64 @@ const stepList = [
   letter-spacing: 0.16em;
   color: var(--accent);
   font-weight: 560;
+}
+
+/* 游园人说（F16） */
+.review-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.review {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stars {
+  margin: 0;
+  color: #d99a1f;
+  letter-spacing: 2px;
+}
+
+.stars .dim {
+  color: var(--border-strong);
+}
+
+.stars-val {
+  margin-left: 6px;
+  font-size: 13px;
+  color: var(--ink-2);
+  letter-spacing: 0;
+}
+
+.r-content {
+  margin: 0;
+  flex: 1;
+  font-size: 14.5px;
+  line-height: 1.7;
+}
+
+.r-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px dashed var(--border);
+  padding-top: 10px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.r-name {
+  font-weight: 600;
+}
+
+@media (max-width: 767px) {
+  .review-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .hero-copy h1 {

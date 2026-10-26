@@ -2,6 +2,8 @@
 import { ref, computed } from 'vue'
 import StatusChip from '../components/StatusChip.vue'
 import QrMock from '../components/QrMock.vue'
+import LineChart from '../components/charts/LineChart.vue'
+import DonutChart from '../components/charts/DonutChart.vue'
 import { useTicketingStore } from '../stores/ticketing'
 import { todayStr } from '../mock/seed'
 
@@ -38,6 +40,99 @@ const stats = computed(() => {
   }
 })
 
+// 游客端数据可视化（F04 / E2 口径）：从本人订单聚合，不额外加后端接口
+const trend = computed(() => {
+  const map = {}
+  for (const o of store.orders) {
+    if (o.status !== '已支付' && o.status !== '已使用') continue
+    const day = (o.createTime || '').slice(0, 10)
+    if (!day) continue
+    map[day] = (map[day] || 0) + o.totalAmount
+  }
+  const days = Object.keys(map).sort().slice(-10)
+  return {
+    labels: days.map((d) => d.slice(5).replace('-', '/')),
+    series: [{ name: '消费金额', values: days.map((d) => map[d]) }],
+  }
+})
+
+const byType = computed(() => {
+  const map = {}
+  for (const o of store.orders) {
+    if (o.status !== '已支付' && o.status !== '已使用') continue
+    map[o.typeName] = (map[o.typeName] || 0) + o.totalAmount
+  }
+  return Object.entries(map).map(([name, value]) => ({ name, value }))
+})
+
+function stars(n) {
+  return '★'.repeat(n) + '☆'.repeat(5 - n)
+}
+
+// 门票改期（F03 扩展）：整单未检票门票迁移到新游园日
+const reschedFor = ref(null) // 订单 id
+const newDate = ref('')
+const reschedError = ref('')
+
+function canReschedule(o) {
+  return (
+    o.status === '已支付' &&
+    o.visitDate > todayStr() &&
+    o.tickets.some((t) => t.status === '未检票')
+  )
+}
+
+function startReschedule(o) {
+  reschedFor.value = o.id
+  newDate.value = ''
+  reschedError.value = ''
+}
+
+async function submitReschedule(o) {
+  if (!newDate.value) {
+    reschedError.value = '请选择新的游园日期'
+    return
+  }
+  if (newDate.value <= o.visitDate && newDate.value <= todayStr()) {
+    reschedError.value = '新游园日期不能早于或等于原日期，且需为未到日期'
+    return
+  }
+  try {
+    await store.reschedule(o.id, newDate.value)
+    reschedFor.value = null
+  } catch (e) {
+    reschedError.value = e.message
+  }
+}
+
+// 游园评价（F16）：已检票门票一票一评
+const reviewFor = ref(null) // 票号
+const reviewRating = ref(5)
+const reviewText = ref('')
+const reviewError = ref('')
+
+function canReview(t) {
+  return t.status === '已检票' && !t.review
+}
+
+function startReview(t) {
+  reviewFor.value = t.ticketNo
+  reviewRating.value = 5
+  reviewText.value = ''
+  reviewError.value = ''
+  // 评价表单在门票详情区内，行上点击时同步展开
+  expanded.value = { ...expanded.value, [t.ticketNo]: true }
+}
+
+async function submitReview(t) {
+  try {
+    await store.submitReview(t.ticketNo, reviewRating.value, reviewText.value.trim())
+    reviewFor.value = null
+  } catch (e) {
+    reviewError.value = e.message
+  }
+}
+
 const expanded = ref({})
 function isExpanded(no) {
   return !!expanded.value[no]
@@ -45,6 +140,13 @@ function isExpanded(no) {
 function toggle(no) {
   expanded.value = { ...expanded.value, [no]: !expanded.value[no] }
 }
+
+// 改期最早可选日：明天
+const tomorrowMin = computed(() => {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  return d.toISOString().slice(0, 10)
+})
 
 // 退票申请
 const refundFor = ref(null)
@@ -129,6 +231,18 @@ async function doCancel(o) {
       </div>
     </div>
 
+    <!-- 游客端数据可视化（F04）：本人消费趋势与票种占比 -->
+    <div v-if="store.orders.length && (trend.labels.length || byType.length)" class="charts">
+      <div class="chart card">
+        <h3 class="chart-title">消费趋势（按下单日）</h3>
+        <LineChart :labels="trend.labels" :series="trend.series" :height="220" unit="元" />
+      </div>
+      <div class="chart card">
+        <h3 class="chart-title">票种消费占比</h3>
+        <DonutChart :items="byType" center-label="消费" />
+      </div>
+    </div>
+
     <div class="filters" v-if="store.orders.length">
       <button
         v-for="f in FILTERS"
@@ -176,6 +290,17 @@ async function doCancel(o) {
                 <button v-if="canRefund(o, t)" class="link danger" @click="startRefund(t.ticketNo)">
                   申请退票
                 </button>
+                <!-- 游园评价（F16）：入口放在门票行，已检票可见 -->
+                <button v-if="canReview(t)" class="link review" @click="startReview(t)">
+                  ✍️ 写评价
+                </button>
+                <span
+                  v-else-if="t.status === '已检票' && t.review"
+                  class="review done"
+                  :title="'我的评价：' + (t.review.content || '（仅星级）')"
+                >
+                  <span class="stars num">{{ stars(t.review.rating) }}</span> 已评价
+                </span>
               </div>
             </div>
 
@@ -201,6 +326,43 @@ async function doCancel(o) {
                 >
                   申请已提交，由景区管理员在后台审核，请耐心等待。
                 </span>
+
+                <!-- 游园评价（F16）：已检票门票，一票一评 -->
+                <div v-if="t.status === '已检票'" class="review-block">
+                  <template v-if="t.review">
+                    <span class="stars num" aria-label="我的评分">{{ stars(t.review.rating) }}</span>
+                    <span class="field-text">我的评价：{{ t.review.content || '（仅星级）' }}</span>
+                  </template>
+                  <template v-else>
+                    <button class="link" @click="startReview(t)">写评价</button>
+                    <div class="review-form">
+                      <div class="star-pick">
+                        <button
+                          v-for="n in 5"
+                          :key="n"
+                          class="star"
+                          :class="{ on: n <= reviewRating }"
+                          type="button"
+                          @click="reviewRating = n"
+                        >
+                          ★
+                        </button>
+                        <span class="num star-val">{{ reviewRating }} 星</span>
+                      </div>
+                      <textarea
+                        v-model="reviewText"
+                        rows="2"
+                        maxlength="255"
+                        placeholder="说说游园感受（选填）"
+                      ></textarea>
+                      <p class="err">{{ reviewError }}</p>
+                      <div class="refund-actions">
+                        <button class="btn btn-primary btn-sm" @click="submitReview(t)">提交评价</button>
+                        <button class="btn btn-ghost btn-sm" @click="reviewFor = null">取消</button>
+                      </div>
+                    </div>
+                  </template>
+                </div>
               </div>
 
               <div v-if="refundFor === t.ticketNo" class="refund-form">
@@ -240,6 +402,20 @@ async function doCancel(o) {
             </button>
           </div>
         </footer>
+
+        <!-- 门票改期（F03 扩展）：游园日前，整单未检票门票迁移 -->
+        <footer v-else-if="canReschedule(o)" class="o-foot">
+          <span class="field-text">游园日之前可改期：仅未检票门票迁移，原日期额度自动回补。</span>
+          <div class="o-foot-actions">
+            <template v-if="reschedFor === o.id">
+              <input v-model="newDate" type="date" :min="tomorrowMin" class="inline-input num" />
+              <button class="btn btn-primary btn-sm" @click="submitReschedule(o)">确认改期</button>
+              <button class="btn btn-ghost btn-sm" @click="reschedFor = null">取消</button>
+            </template>
+            <button v-else class="btn btn-ghost btn-sm" @click="startReschedule(o)">改期</button>
+          </div>
+        </footer>
+        <p v-if="reschedError && reschedFor === o.id" class="err">{{ reschedError }}</p>
 
         <p v-if="actionError && o.status === '待支付'" class="err">{{ actionError }}</p>
       </article>
@@ -292,6 +468,99 @@ async function doCancel(o) {
 .stat-unit {
   font-size: 12.5px;
   color: var(--ink-3);
+}
+
+/* 游客端可视化面板 */
+.charts {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.chart {
+  padding: 16px 18px;
+}
+
+.chart-title {
+  margin: 0 0 8px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+/* 评价（F16） */
+.review-block {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  border-top: 1px dashed var(--border);
+  padding-top: 10px;
+  margin-top: 4px;
+}
+
+.stars {
+  color: #d99a1f;
+  letter-spacing: 2px;
+  font-size: 15px;
+}
+
+.review-form {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.star-pick {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.star {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--border-strong);
+  padding: 2px;
+}
+
+.star.on {
+  color: #d99a1f;
+}
+
+.star-val {
+  margin-left: 6px;
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+
+.review-form textarea {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 14.5px;
+  resize: vertical;
+}
+
+.review-form textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.inline-input {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 14px;
 }
 
 .filters {
@@ -396,6 +665,22 @@ async function doCancel(o) {
   margin-left: auto;
   display: flex;
   gap: 18px;
+  align-items: center;
+}
+
+/* 评价入口（F16）：与「申请退票」同级，已检票门票行内直出 */
+.link.review {
+  color: #b47405;
+  font-weight: 600;
+}
+
+.link.review:hover {
+  color: #d99a1f;
+}
+
+.review.done {
+  color: var(--ink-3);
+  font-size: 13px;
 }
 
 .t-detail {
@@ -506,6 +791,10 @@ async function doCancel(o) {
 
 @media (max-width: 767px) {
   .stats {
+    grid-template-columns: 1fr;
+  }
+
+  .charts {
     grid-template-columns: 1fr;
   }
 

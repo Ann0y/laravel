@@ -6,6 +6,7 @@ use App\Models\ScenicArea;
 use App\Models\TicketType;
 use App\Models\RefundRecord;
 use App\Models\Ticket;
+use App\Models\TicketReview;
 use App\Models\SaleOrder;
 use App\Models\TicketStock;
 
@@ -49,6 +50,28 @@ class Formatter
         ] : null;
     }
 
+    public static function review(?TicketReview $r, bool $maskVisitor = false): ?array
+    {
+        return $r ? [
+            'id' => $r->id,
+            'rating' => (int) $r->rating,
+            'content' => $r->content,
+            'createTime' => optional($r->create_time)->toISOString(),
+            'visitorName' => $maskVisitor ? self::maskName($r->visitor?->user?->name) : $r->visitor?->user?->name,
+        ] : null;
+    }
+
+    /** 姓名脱敏：张三 → 张*，李四（窗口票务员）→ 李****** */
+    public static function maskName(?string $name): string
+    {
+        if (!$name) {
+            return '匿名';
+        }
+        $first = mb_substr($name, 0, 1);
+
+        return $first . str_repeat('*', max(1, mb_strlen($name) - 1));
+    }
+
     public static function ticket(Ticket $t): array
     {
         return [
@@ -60,6 +83,7 @@ class Formatter
             'status' => $t->status,
             'checkTime' => optional($t->check_time)->toISOString(),
             'refund' => self::refund($t->relationLoaded('latestRefund') ? $t->latestRefund : null),
+            'review' => self::review($t->relationLoaded('review') ? $t->review : null),
         ];
     }
 
@@ -82,7 +106,7 @@ class Formatter
         ];
 
         if ($withTickets) {
-            $o->loadMissing('tickets.latestRefund');
+            $o->loadMissing(['tickets.latestRefund', 'tickets.review']);
             $data['tickets'] = array_map([self::class, 'ticket'], $o->tickets->all());
         }
 

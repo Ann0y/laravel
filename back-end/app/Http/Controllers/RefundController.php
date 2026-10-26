@@ -66,7 +66,7 @@ class RefundController extends Controller
             'approve' => 'required|boolean',
             // 通过可不写意见；驳回必须说明原因（需求文档 3.3）
             'opinion' => 'required_if:approve,false|nullable|string|max:255',
-        ], \App\Http\Controllers\AuthController::messages());
+        ], \App\Http\Controllers\AuthController::messages(), AuthController::attributes());
 
         $record = RefundRecord::findOrFail($id);
         $record = (new TicketingService())->auditRefund($record, (bool) $data['approve'], $data['opinion'] ?? null, app('authUser'));

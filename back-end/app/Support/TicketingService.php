@@ -233,8 +233,9 @@ class TicketingService
                 $ticket->save();
 
                 // 定位额度行：不与 open_day join（两表 id/status 等列名冲突会覆盖主键），
-                // 与 cancelOrder 口径一致：先查开放日 id 再锁额度行
-                $openDayId = OpenDay::where('open_date', $order->visit_date->toDateString())->value('id');
+                // 与 cancelOrder 口径一致：先查开放日 id 再锁额度行；
+                // 回补键用门票自身游园日（支持门票改期后，回补必须跟票走而非订单快照）
+                $openDayId = OpenDay::where('open_date', $ticket->visit_date->toDateString())->value('id');
                 $stock = TicketStock::where('open_day_id', $openDayId)
                     ->where('type_id', $order->type_id)
                     ->lockForUpdate()->first();
@@ -254,6 +255,55 @@ class TicketingService
             $order->save();
 
             return $record;
+        });
+    }
+
+    /** 门票改期（游客，整单未检票门票迁移）：原日回补、新日占额，同一套 E1 库存校验 */
+    public function rescheduleOrder(Visitor $visitor, SaleOrder $order, string $newDate): SaleOrder
+    {
+        return DB::transaction(function () use ($visitor, $order, $newDate) {
+            $order = SaleOrder::whereKey($order->id)->lockForUpdate()->first();
+            $this->failUnless($order->visitor_id === $visitor->id, '无权操作该订单', 403);
+            $this->failUnless($order->status === '已支付', '仅已支付订单可以改期');
+            $this->failUnless($order->visit_date->greaterThan(now()->startOfDay()), '游园日当天及之后不支持改期');
+            $this->failUnless($newDate !== $order->visit_date->toDateString(), '新游园日期与原日期相同');
+
+            $day = OpenDay::where('open_date', $newDate)->where('status', '开放')->first();
+            $this->failUnless($day, '目标日期闭园或未开放，请另选日期');
+
+            $moving = $order->tickets()->where('status', '未检票')->get();
+            $this->failUnless($moving->isNotEmpty(), '该订单没有可改期的门票（已检票 / 已退款门票不迁移）');
+            $count = $moving->count();
+
+            // 原日回补
+            $oldStock = TicketStock::where('open_day_id', OpenDay::where('open_date', $order->visit_date->toDateString())->value('id'))
+                ->where('type_id', $order->type_id)->first();
+            if ($oldStock) {
+                $oldStock->sold_count = max(0, $oldStock->sold_count - $count);
+                if ($oldStock->status === '已售罄' && $oldStock->sold_count < $oldStock->quota) {
+                    $oldStock->status = '正常';
+                }
+                $oldStock->save();
+            }
+
+            // 新日占额（锁行校验，防并发超卖）
+            $newStock = TicketStock::where('open_day_id', $day->id)->where('type_id', $order->type_id)->lockForUpdate()->first();
+            $rest = $newStock ? max(0, $newStock->quota - $newStock->sold_count) : 0;
+            $this->failUnless($rest >= $count, "目标日期“{$order->type->type_name}”仅剩 {$rest} 张，不足以迁移 {$count} 张，请另选日期");
+            $newStock->sold_count += $count;
+            if ($newStock->sold_count >= $newStock->quota) {
+                $newStock->status = '已售罄';
+            }
+            $newStock->save();
+
+            foreach ($moving as $t) {
+                $t->visit_date = $newDate;
+                $t->save();
+            }
+            $order->visit_date = $newDate;
+            $order->save();
+
+            return $order->refresh()->loadMissing('tickets');
         });
     }
 
