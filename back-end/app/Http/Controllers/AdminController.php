@@ -86,7 +86,16 @@ class AdminController extends Controller
     // ---------- 票种 ----------
     public function types()
     {
-        return ok(['list' => \App\Models\TicketType::where('del_flag', 0)->orderBy('id')->get()->map(fn ($t) => \App\Support\Formatter::ticketType($t))->values()]);
+        return ok(['list' => \App\Models\TicketType::where('del_flag', 0)->orderBy('id')->get()->map(fn ($t) => [
+            // 管理端契约：数字主键 + 票种编码分开（游客端 Formatter::ticketType 的 id 为编码）
+            'id' => $t->id,
+            'typeCode' => $t->type_code,
+            'typeName' => $t->type_name,
+            'price' => (float) $t->price,
+            'applicable' => $t->applicable,
+            'refundable' => (bool) $t->refundable,
+            'status' => $t->status,
+        ])->values()]);
     }
 
     public function saveType(Request $request, ?int $id = null)
@@ -102,7 +111,7 @@ class AdminController extends Controller
 
         $payload = [
             'type_code' => $data['typeCode'], 'type_name' => $data['typeName'], 'price' => $data['price'],
-            'applicable' => $data['applicable'], 'refundable' => (int) ($data['refundable'] ?? true), 'status' => $data['status'],
+            'applicable' => $data['applicable'] ?? null, 'refundable' => (int) ($data['refundable'] ?? true), 'status' => $data['status'],
         ];
 
         $type = $id ? tap(\App\Models\TicketType::findOrFail($id))->update($payload) : \App\Models\TicketType::create($payload);

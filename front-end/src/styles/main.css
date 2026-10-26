@@ -1,17 +1,17 @@
 :root {
-  --bg: #f5f7f6;
+  --bg: #f6f7f6;
   --surface: #ffffff;
-  --border: #e4e8e6;
-  --border-strong: #ccd4d0;
+  --border: #e6eae7;
+  --border-strong: #cfd6d2;
 
-  --ink: #1c231f;
-  --ink-2: #5a655f;
-  --ink-3: #8d968f;
+  --ink: #20261f;
+  --ink-2: #59645d;
+  --ink-3: #939d95;
 
-  --accent: #0f7a5c;
-  --accent-hover: #0b5f47;
-  --accent-soft: #e8f2ee;
-  --accent-ring: rgba(15, 122, 92, 0.22);
+  --accent: #0e7a5a;
+  --accent-hover: #0a5f47;
+  --accent-soft: #e9f3ee;
+  --accent-ring: rgba(14, 122, 90, 0.18);
 
   --amber: #96660f;
   --amber-soft: #f7efe0;
@@ -21,9 +21,10 @@
   --zinc: #5b655f;
   --zinc-soft: #eef1ef;
 
-  --radius: 12px;
-  --radius-sm: 8px;
-  --shadow-card: 0 1px 2px rgba(28, 35, 31, 0.05);
+  --radius: 14px;
+  --radius-sm: 9px;
+  --shadow-card: 0 1px 2px rgba(28, 38, 31, 0.05), 0 6px 20px rgba(28, 38, 31, 0.04);
+  --shadow-card-hover: 0 2px 4px rgba(28, 38, 31, 0.05), 0 12px 32px rgba(28, 38, 31, 0.08);
 }
 
 * {
@@ -44,6 +45,12 @@ body {
   font-size: 16px;
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
 }
 
 a {
@@ -60,7 +67,7 @@ button {
 }
 
 .container {
-  max-width: 1120px;
+  max-width: 1152px;
   margin: 0 auto;
   padding: 0 24px;
 }
@@ -68,6 +75,13 @@ button {
 .muted {
   color: var(--ink-2);
   font-size: 14px;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-weight: 640;
 }
 
 /* 按钮 */
@@ -79,11 +93,12 @@ button {
   border: none;
   cursor: pointer;
   border-radius: 999px;
-  padding: 10px 22px;
+  padding: 10px 24px;
   font-size: 15px;
+  font-weight: 500;
   line-height: 1.5;
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease,
-    transform 0.12s ease;
+    box-shadow 0.2s ease, transform 0.12s ease;
 }
 
 .btn:active:not(:disabled) {
@@ -93,30 +108,34 @@ button {
 .btn-primary {
   background: var(--accent);
   color: #fff;
+  box-shadow: 0 1px 2px rgba(14, 122, 90, 0.24), 0 6px 16px rgba(14, 122, 90, 0.16);
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-hover);
+  box-shadow: 0 1px 2px rgba(14, 122, 90, 0.28), 0 8px 22px rgba(14, 122, 90, 0.22);
 }
 
 .btn-primary:disabled {
   background: #b9c6c0;
+  box-shadow: none;
   cursor: not-allowed;
 }
 
 .btn-ghost {
-  background: transparent;
+  background: var(--surface);
   border: 1px solid var(--border-strong);
   color: var(--ink);
+  box-shadow: var(--shadow-card);
 }
 
 .btn-ghost:hover:not(:disabled) {
   border-color: var(--ink-2);
-  background: #fff;
 }
 
 .btn-ghost:disabled {
   color: var(--ink-3);
+  box-shadow: none;
   cursor: not-allowed;
 }
 
@@ -134,6 +153,10 @@ button {
 .btn-sm {
   padding: 6px 14px;
   font-size: 14px;
+}
+
+.btn-sm.btn-ghost {
+  box-shadow: none;
 }
 
 .btn-block {
@@ -163,6 +186,13 @@ button {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-card);
+  transition: box-shadow 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
+}
+
+.card.clickable:hover {
+  box-shadow: var(--shadow-card-hover);
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
 }
 
 /* 表单（label 在上，错误在下） */
@@ -198,7 +228,11 @@ button {
 .field textarea:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-ring);
+  box-shadow: 0 0 0 4px var(--accent-ring);
+}
+
+.field input:user-invalid {
+  border-color: var(--rose);
 }
 
 .field-text {
@@ -210,6 +244,13 @@ button {
   color: var(--rose);
   font-size: 13.5px;
   margin: 4px 0 0;
+}
+
+/* 键盘可达性：统一焦点环 */
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--accent-ring);
+  border-radius: 6px;
 }
 
 /* 页面切换过渡（尊重 reduced-motion） */

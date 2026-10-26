@@ -76,6 +76,7 @@ class Formatter
             'totalAmount' => (float) $o->total_amount,
             'channel' => $o->channel,
             'status' => $o->status,
+            'payMethod' => $o->pay_method,
             'createTime' => optional($o->create_time)->toISOString(),
             'visitorName' => $o->visitor?->user?->name,
         ];

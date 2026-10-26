@@ -64,7 +64,8 @@ class RefundController extends Controller
     {
         $data = $request->validate([
             'approve' => 'required|boolean',
-            'opinion' => 'nullable|string|max:255',
+            // 通过可不写意见；驳回必须说明原因（需求文档 3.3）
+            'opinion' => 'required_if:approve,false|nullable|string|max:255',
         ], \App\Http\Controllers\AuthController::messages());
 
         $record = RefundRecord::findOrFail($id);
@@ -92,6 +93,8 @@ class RefundController extends Controller
                 'refundAmount' => (float) $r->refund_amount,
                 'reason' => $r->reason,
                 'auditStatus' => $r->audit_status,
+                'auditOpinion' => $r->audit_opinion,
+                'auditTime' => optional($r->audit_time)->toISOString(),
                 'applyTime' => optional($r->apply_time)->toISOString(),
             ]);
 

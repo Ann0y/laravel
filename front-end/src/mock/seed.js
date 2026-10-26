@@ -99,7 +99,7 @@ export function seedOrders(dates) {
     {
       id: 1,
       orderNo: 'SO' + today.replaceAll('-', '') + '0001',
-      visitorName: '张临风',
+      visitorName: '张三',
       visitDate: today,
       typeId: 'ADULT',
       typeName: adult.name,
@@ -114,7 +114,7 @@ export function seedOrders(dates) {
     {
       id: 2,
       orderNo: 'SO' + future.replaceAll('-', '') + '0002',
-      visitorName: '张临风',
+      visitorName: '张三',
       visitDate: future,
       typeId: 'STUDENT',
       typeName: student.name,
@@ -133,7 +133,7 @@ export function seedOrders(dates) {
     {
       id: 3,
       orderNo: 'SO' + dateStr(new Date()).replaceAll('-', '') + '0003',
-      visitorName: '张临风',
+      visitorName: '张三',
       visitDate: dates[1],
       typeId: 'ADULT',
       typeName: adult.name,

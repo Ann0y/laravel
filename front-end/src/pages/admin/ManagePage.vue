@@ -233,7 +233,7 @@ const typeSelling = computed(() => types.value.filter((t) => t.status === '在�
           <tbody>
             <tr v-for="t in types" :key="t.id">
               <td class="num">{{ t.typeCode }}</td>
-              <td>{{ t.name }}</td>
+              <td>{{ t.typeName }}</td>
               <td class="num">¥{{ t.price }}</td>
               <td class="muted">{{ t.applicable || '—' }}</td>
               <td>{{ t.refundable ? '可退' : '不可退' }}</td>

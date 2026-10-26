@@ -58,7 +58,9 @@ router.beforeEach(async (to) => {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
   if (to.meta.roles && auth.user && !to.meta.roles.includes(auth.user.role)) {
-    return { path: '/' }
+    // 角色不符时回本端工作台（管理员 / 票务员没有购票职责，不落公共首页）
+    const r = auth.user.role
+    return { path: r === 'admin' ? '/admin' : r === 'operator' ? '/operator' : '/' }
   }
 })
 

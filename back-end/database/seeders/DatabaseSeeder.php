@@ -63,10 +63,10 @@ class DatabaseSeeder extends Seeder
         // ----------
         $admin = SysUser::create(['username' => 'admin', 'password' => bcrypt('admin123'), 'name' => '景区管理员', 'role' => 'admin']);
 
-        $opUser = SysUser::create(['username' => 'window01', 'password' => bcrypt('window123'), 'name' => '票务员小周', 'role' => 'operator']);
+        $opUser = SysUser::create(['username' => 'window01', 'password' => bcrypt('window123456'), 'name' => '李四（窗口票务员）', 'role' => 'operator']);
         Operator::create(['user_id' => $opUser->id, 'code' => 'OP001', 'window_no' => 'A-01']);
 
-        $demoUser = SysUser::create(['username' => 'demo', 'password' => bcrypt('123456'), 'name' => '张临风', 'role' => 'visitor']);
+        $demoUser = SysUser::create(['username' => 'demo', 'password' => bcrypt('demo123456'), 'name' => '张三', 'role' => 'visitor']);
         $demo = Visitor::create(['user_id' => $demoUser->id, 'phone' => '13800001234', 'status' => '正常']);
 
         // ----------

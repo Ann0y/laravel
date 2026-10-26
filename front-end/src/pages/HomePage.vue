@@ -1,14 +1,30 @@
 <script setup>
 import { computed } from 'vue'
 import { useTicketingStore } from '../stores/ticketing'
+import { useAuthStore } from '../stores/auth'
 import { todayStr } from '../mock/seed'
 
 const store = useTicketingStore()
+const auth = useAuthStore()
 const today = computed(() => todayStr())
+
+// 员工（管理员 / 票务员）不在公共首页暴露购票入口：换成本端工作台跳转
+const isVisitor = computed(() => !auth.user || auth.user?.role === 'visitor')
+const staffEntry = computed(() => {
+  if (auth.user?.role === 'admin') return { to: '/admin', label: '进入管理端' }
+  if (auth.user?.role === 'operator') return { to: '/operator', label: '进入工作台' }
+  return null
+})
 
 function remainingOf(t) {
   return store.remaining(today.value, t.id)
 }
+
+const stepList = [
+  { title: '在线选票', desc: '选择游园日期、票种与购买数量，系统按每日额度实时校验余票。' },
+  { title: '确认支付', desc: '提交订单后完成模拟支付，即刻出票，门票与核销码在订单中生成。' },
+  { title: '扫码入园', desc: '游园当日出示门票二维码，检票员核销后入园，一码一人仅一次有效。' },
+]
 </script>
 
 <template>
@@ -17,12 +33,15 @@ function remainingOf(t) {
     <section class="hero container">
       <div class="hero-copy">
         <p class="hero-kicker">青岚谷风景区 线上售票</p>
-        <h1>把一个周末，还给青岚谷。</h1>
+        <h1>把一个周末，<br />还给青岚谷。</h1>
         <p class="hero-sub">
           峡谷栈道与森林步道两条经典线路，线上选票、到园出示二维码检票，少排队、不跑空。
         </p>
         <div class="hero-cta">
-          <RouterLink to="/buy" class="btn btn-primary">立即购票</RouterLink>
+          <RouterLink v-if="staffEntry" :to="staffEntry.to" class="btn btn-primary">
+            {{ staffEntry.label }}
+          </RouterLink>
+          <RouterLink v-else to="/buy" class="btn btn-primary">立即购票</RouterLink>
           <a href="#tickets" class="btn btn-ghost">查看票种</a>
         </div>
         <dl class="hero-meta">
@@ -41,6 +60,7 @@ function remainingOf(t) {
           src="https://picsum.photos/seed/qinglan-valley/1200/900"
           alt="青岚谷峡谷与栈道（示意图片）"
         />
+        <figcaption class="visually-hidden">青岚谷峡谷与栈道</figcaption>
       </figure>
     </section>
 
@@ -68,33 +88,30 @@ function remainingOf(t) {
             <span class="rest num" :class="{ soldout: remainingOf(t) <= 0 }">
               {{ remainingOf(t) > 0 ? `今日剩余 ${remainingOf(t)} 张` : '今日已售罄' }}
             </span>
-            <button v-if="remainingOf(t) <= 0" class="btn btn-ghost btn-sm" disabled>
-              已售罄
-            </button>
-            <RouterLink v-else :to="`/buy?type=${t.id}`" class="btn btn-ghost btn-sm">
-              选购
-            </RouterLink>
+            <template v-if="isVisitor">
+              <button v-if="remainingOf(t) <= 0" class="btn btn-ghost btn-sm" disabled>
+                已售罄
+              </button>
+              <RouterLink v-else :to="`/buy?type=${t.id}`" class="btn btn-ghost btn-sm">
+                选购
+              </RouterLink>
+            </template>
           </footer>
         </article>
       </div>
     </section>
 
-    <!-- 购票流程 -->
-    <section class="section alt">
+    /* 购票流程（纯游客宣传内容，员工角色不展示） */
+    <section v-if="isVisitor" class="section alt">
       <div class="container">
         <h2 class="section-title">购票流程</h2>
         <div class="steps">
-          <div class="step">
-            <h3>在线选票</h3>
-            <p>选择游园日期、票种与购买数量，系统按每日额度实时校验余票。</p>
-          </div>
-          <div class="step">
-            <h3>确认支付</h3>
-            <p>提交订单后完成模拟支付，即刻出票，门票与核销码在订单中生成。</p>
-          </div>
-          <div class="step">
-            <h3>扫码入园</h3>
-            <p>游园当日出示门票二维码，检票员核销后入园，一码一人仅一次有效。</p>
+          <div class="step" v-for="(s, i) in stepList" :key="s.title">
+            <span class="step-idx num">{{ String(i + 1).padStart(2, '0') }}</span>
+            <div>
+              <h3>{{ s.title }}</h3>
+              <p>{{ s.desc }}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -112,54 +129,65 @@ function remainingOf(t) {
 </template>
 
 <style scoped>
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 .hero {
   display: grid;
   grid-template-columns: 1.05fr 0.95fr;
-  gap: 48px;
+  gap: 56px;
   align-items: center;
-  padding-top: 56px;
-  padding-bottom: 24px;
+  padding-top: 64px;
+  padding-bottom: 32px;
 }
 
 .hero-kicker {
-  margin: 0 0 14px;
-  font-size: 13.5px;
-  letter-spacing: 0.14em;
-  color: var(--ink-3);
+  margin: 0 0 18px;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+  font-weight: 560;
 }
 
 .hero-copy h1 {
-  margin: 0 0 16px;
-  font-size: clamp(34px, 4.6vw, 52px);
-  line-height: 1.15;
-  letter-spacing: -0.01em;
-  font-weight: 650;
+  margin: 0 0 18px;
+  font-size: clamp(36px, 4.8vw, 56px);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  font-weight: 680;
 }
 
 .hero-sub {
-  margin: 0 0 28px;
-  max-width: 34em;
+  margin: 0 0 32px;
+  max-width: 32em;
   color: var(--ink-2);
+  font-size: 16.5px;
 }
 
 .hero-cta {
   display: flex;
   gap: 14px;
-  margin-bottom: 36px;
+  margin-bottom: 40px;
 }
 
 .hero-meta {
   display: flex;
-  gap: 40px;
+  gap: 48px;
   margin: 0;
-  padding-top: 22px;
+  padding-top: 24px;
   border-top: 1px solid var(--border);
 }
 
 .hero-meta dt {
   font-size: 12.5px;
   color: var(--ink-3);
-  margin-bottom: 2px;
+  margin-bottom: 3px;
 }
 
 .hero-meta dd {
@@ -170,6 +198,7 @@ function remainingOf(t) {
 
 .hero-figure {
   margin: 0;
+  position: relative;
 }
 
 .hero-figure img {
@@ -177,16 +206,26 @@ function remainingOf(t) {
   width: 100%;
   aspect-ratio: 4 / 3;
   object-fit: cover;
-  border-radius: 16px;
+  border-radius: var(--radius);
   border: 1px solid var(--border);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.hero-figure::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  pointer-events: none;
 }
 
 .section {
-  padding: 44px 0;
+  padding: 56px 0;
 }
 
 .section.alt {
-  padding: 44px 24px;
+  padding: 56px 24px;
   background: var(--surface);
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
@@ -194,14 +233,14 @@ function remainingOf(t) {
 }
 
 .section-title {
-  margin: 0 0 6px;
-  font-size: 24px;
-  font-weight: 620;
+  margin: 0 0 8px;
+  font-size: 25px;
+  font-weight: 660;
   letter-spacing: -0.01em;
 }
 
 .section-sub {
-  margin: 0 0 28px;
+  margin: 0 0 32px;
   color: var(--ink-2);
   font-size: 15px;
 }
@@ -209,20 +248,31 @@ function remainingOf(t) {
 .type-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  gap: 18px;
+}
+
+.type-card {
+  padding: 24px 24px 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.type-card:hover {
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2px);
 }
 
 .type-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .type-head h3 {
   margin: 0;
   font-size: 16.5px;
-  font-weight: 620;
+  font-weight: 640;
 }
 
 .tag {
@@ -234,7 +284,7 @@ function remainingOf(t) {
 }
 
 .price {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
   display: flex;
   align-items: baseline;
   gap: 2px;
@@ -247,8 +297,8 @@ function remainingOf(t) {
 }
 
 .amount {
-  font-size: 32px;
-  font-weight: 650;
+  font-size: 36px;
+  font-weight: 680;
   letter-spacing: -0.02em;
 }
 
@@ -258,7 +308,7 @@ function remainingOf(t) {
 }
 
 .applicable {
-  margin: 0 0 18px;
+  margin: 0 0 20px;
   font-size: 13.5px;
   color: var(--ink-2);
   min-height: 3.2em;
@@ -269,6 +319,7 @@ function remainingOf(t) {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  margin-top: auto;
 }
 
 .rest {
@@ -282,18 +333,39 @@ function remainingOf(t) {
 
 .featured {
   border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), var(--shadow-card);
 }
 
 .steps {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 32px;
+  gap: 36px;
+}
+
+.step {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.step-idx {
+  flex: none;
+  font-size: 13px;
+  font-weight: 640;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 999px;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .step h3 {
-  margin: 0 0 8px;
+  margin: 4px 0 8px;
   font-size: 16.5px;
-  font-weight: 620;
+  font-weight: 640;
 }
 
 .step p {
@@ -303,10 +375,11 @@ function remainingOf(t) {
 }
 
 .notice {
-  padding: 24px 28px;
+  padding: 26px 30px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  border-left: 3px solid var(--accent);
 }
 
 .notice p {

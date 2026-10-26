@@ -31,7 +31,17 @@ async function submit() {
         name: name.value.trim(),
       })
     }
-    router.push(route.query.redirect || '/')
+    // 员工登录直达本端工作台，不停留公共首页（管理员 / 票务员无购票职责）
+    const role = auth.user?.role
+    if (route.query.redirect) {
+      router.push(route.query.redirect)
+    } else if (role === 'admin') {
+      router.push('/admin')
+    } else if (role === 'operator') {
+      router.push('/operator')
+    } else {
+      router.push('/')
+    }
   } catch (e) {
     error.value = e.message
   } finally {
@@ -42,7 +52,7 @@ async function submit() {
 function fillDemo() {
   mode.value = 'login'
   username.value = 'demo'
-  password.value = '123456'
+  password.value = 'demo123456'
 }
 </script>
 
