@@ -227,6 +227,9 @@ async function deleteItem() {
       <button class="tab" :class="{ active: tab === 'types' }" @click="tab = 'types'">
         票种管理<span class="tab-sub num">{{ typeSelling }} 个在售</span>
       </button>
+      <button class="tab" :class="{ active: tab === 'items' }" @click="tab = 'items'">
+        园内项目<span class="tab-sub num">{{ itemSelling }} 个在售</span>
+      </button>
       <button class="tab" :class="{ active: tab === 'days' }" @click="tab = 'days'">
         开放日与额度<span class="tab-sub num">未来 14 天</span>
       </button>
@@ -326,6 +329,93 @@ async function deleteItem() {
           <div class="form-actions">
             <button class="btn btn-danger btn-sm" @click="deleteType">确认删除</button>
             <button class="btn btn-ghost btn-sm" @click="confirmDeleteType = null">取消</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 园内项目管理（F17） -->
+    <section v-else-if="tab === 'items'" class="card block">
+      <div class="blk-head">
+        <h2>园内项目</h2>
+        <button class="btn btn-primary btn-sm" @click="openItemForm()">新增项目</button>
+      </div>
+      <p class="muted" style="font-size: 12.5px; margin: -6px 0 8px;">
+        入园后单独付费的游玩项目。不限量销售；游客购买需持当日有效门票；项目票售出后不可退改。
+      </p>
+
+      <div v-if="itemForm" class="type-form">
+        <h3>{{ itemForm.id ? '编辑项目' : '新增项目' }}</h3>
+        <div class="tf-grid">
+          <div class="field">
+            <label>项目编码</label>
+            <input v-model="itemForm.itemCode" placeholder="如 CRUISE" maxlength="20" :disabled="!!itemForm.id" />
+          </div>
+          <div class="field">
+            <label>项目名称</label>
+            <input v-model="itemForm.name" placeholder="如 峡谷游船" maxlength="50" />
+          </div>
+          <div class="field">
+            <label>单价（元/人次）</label>
+            <input v-model="itemForm.price" type="number" min="0.01" step="0.01" placeholder="如 60" />
+          </div>
+          <div class="field">
+            <label>在售状态</label>
+            <select v-model="itemForm.status">
+              <option>在售</option>
+              <option>停售</option>
+            </select>
+          </div>
+          <div class="field tf-wide">
+            <label>项目说明</label>
+            <input v-model="itemForm.description" placeholder="时长 / 适游人群等说明" maxlength="255" />
+          </div>
+        </div>
+        <p v-if="itemError" class="err">{{ itemError }}</p>
+        <div class="form-actions">
+          <button class="btn btn-primary btn-sm" :disabled="itemBusy" @click="saveItem">保存</button>
+          <button class="btn btn-ghost btn-sm" @click="itemForm = null">取消</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>编码</th>
+              <th>名称</th>
+              <th class="num">单价</th>
+              <th>说明</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="i in items" :key="i.id">
+              <td class="num">{{ i.itemCode }}</td>
+              <td>{{ i.name }}</td>
+              <td class="num">¥{{ i.price }}</td>
+              <td class="muted">{{ i.description || '—' }}</td>
+              <td><StatusChip :status="i.status" /></td>
+              <td class="ops">
+                <button class="link" @click="openItemForm(i)">编辑</button>
+                <button class="link danger" @click="confirmDeleteItem = i">删除</button>
+              </td>
+            </tr>
+            <tr v-if="!items.length && !itemsLoading">
+              <td colspan="6" class="muted table-empty">暂无项目，点击右上角新增。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-if="confirmDeleteItem" class="modal-mask" @click.self="confirmDeleteItem = null">
+        <div class="modal card">
+          <h3>删除项目「{{ confirmDeleteItem.name }}」？</h3>
+          <p class="muted">删除为逻辑下架（置停售），已有项目票数据不受影响。</p>
+          <div class="form-actions">
+            <button class="btn btn-danger btn-sm" @click="deleteItem">确认删除</button>
+            <button class="btn btn-ghost btn-sm" @click="confirmDeleteItem = null">取消</button>
           </div>
         </div>
       </div>
