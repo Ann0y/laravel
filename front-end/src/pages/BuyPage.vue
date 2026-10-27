@@ -2,7 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import QrMock from '../components/QrMock.vue'
-import { useTicketingStore, MAX_QTY } from '../stores/ticketing'
+import { useTicketingStore, qtyLimit } from '../stores/ticketing'
 import { weekdayLabel, shortDate, todayStr } from '../mock/seed'
 
 const store = useTicketingStore()
@@ -27,7 +27,8 @@ const type = computed(() => store.types.find((t) => t.id === typeId.value))
 const remaining = computed(() =>
   visitDate.value ? store.remaining(visitDate.value, typeId.value) : 0,
 )
-const maxQty = computed(() => Math.min(MAX_QTY, remaining.value))
+const qtyRange = computed(() => qtyLimit(typeId.value))
+const maxQty = computed(() => Math.min(qtyRange.value.max, remaining.value))
 const total = computed(() => (type.value ? type.value.price * quantity.value : 0))
 
 const dateOptions = computed(() =>
@@ -59,7 +60,7 @@ watch(
 
 watch(typeId, () => {
   ensureValidDate()
-  quantity.value = 1
+  quantity.value = qtyRange.value.min
   error.value = ''
 })
 
@@ -70,7 +71,7 @@ function pickDate(o) {
 }
 
 function dec() {
-  quantity.value = Math.max(1, quantity.value - 1)
+  quantity.value = Math.max(qtyRange.value.min, quantity.value - 1)
 }
 
 function inc() {
@@ -174,12 +175,12 @@ async function cancelOrder() {
         <section class="card block">
           <h2>购买数量</h2>
           <div class="qty-row">
-            <button class="btn btn-ghost btn-sm" :disabled="quantity <= 1" @click="dec">−</button>
+            <button class="btn btn-ghost btn-sm" :disabled="quantity <= qtyRange.min" @click="dec">−</button>
             <span class="qty num">{{ quantity }}</span>
             <button class="btn btn-ghost btn-sm" :disabled="quantity >= maxQty" @click="inc">
               +
             </button>
-            <span v-if="visitDate" class="field-text">该日期余 {{ remaining }} 张，单笔限购 {{ MAX_QTY }} 张</span>
+            <span v-if="visitDate" class="field-text">该日期余 {{ remaining }} 张，{{ typeId === 'GROUP' ? '团体票单笔 10-30 张（10 人成团）' : `单笔限购 ${qtyRange.max} 张` }}</span>
           </div>
         </section>
       </div>
@@ -214,7 +215,7 @@ async function cancelOrder() {
           </p>
           <button
             class="btn btn-primary btn-block"
-            :disabled="!visitDate || remaining < quantity || quantity < 1 || submitting"
+            :disabled="!visitDate || remaining < quantity || quantity < qtyRange.min || submitting"
             @click="submitOrder"
           >
             {{ submitting ? '提交中…' : '提交订单' }}
@@ -372,6 +373,7 @@ async function cancelOrder() {
 .type-item.selected {
   border-color: var(--accent);
   background: var(--accent-soft);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .t-name {
@@ -416,6 +418,11 @@ async function cancelOrder() {
 .date-pill.selected {
   border-color: var(--accent);
   background: var(--accent-soft);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.date-pill.selected .d-label {
+  color: var(--accent-hover);
 }
 
 .date-pill:disabled {
@@ -559,9 +566,9 @@ async function cancelOrder() {
 }
 
 .done-icon {
-  width: 44px;
-  height: 44px;
-  margin: 0 auto 12px;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 14px;
   border-radius: 999px;
   background: var(--accent);
   color: #fff;
@@ -569,6 +576,7 @@ async function cancelOrder() {
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 6px 18px rgba(14, 122, 90, 0.3);
 }
 
 .done-card h2 {

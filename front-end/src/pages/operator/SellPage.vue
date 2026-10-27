@@ -1,8 +1,8 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import QrMock from '../../components/QrMock.vue'
 import StatusChip from '../../components/StatusChip.vue'
-import { useTicketingStore, MAX_QTY } from '../../stores/ticketing'
+import { useTicketingStore, qtyLimit } from '../../stores/ticketing'
 import { api } from '../../api'
 import { weekdayLabel, shortDate, todayStr } from '../../mock/seed'
 
@@ -23,8 +23,15 @@ const type = computed(() => store.types.find((t) => t.id === typeId.value))
 const remaining = computed(() =>
   visitDate.value ? store.remaining(visitDate.value, typeId.value) : 0,
 )
-const maxQty = computed(() => Math.min(MAX_QTY, remaining.value))
+const qtyRange = computed(() => qtyLimit(typeId.value))
+const maxQty = computed(() => Math.min(qtyRange.value.max, remaining.value))
 const total = computed(() => (type.value ? type.value.price * quantity.value : 0))
+
+// 团体票 10 张起购：切换票种时把数量对到起点
+watch(typeId, () => {
+  quantity.value = qtyRange.value.min
+  error.value = ''
+})
 const canSubmit = computed(
   () =>
     visitDate.value &&
@@ -56,7 +63,7 @@ function pickDate(o) {
 }
 
 function dec() {
-  quantity.value = Math.max(1, quantity.value - 1)
+  quantity.value = Math.max(qtyRange.value.min, quantity.value - 1)
 }
 
 function inc() {
@@ -191,7 +198,7 @@ function again() {
               <button class="btn btn-ghost btn-sm" :disabled="quantity <= 1" @click="dec">−</button>
               <span class="qty num">{{ quantity }}</span>
               <button class="btn btn-ghost btn-sm" :disabled="quantity >= maxQty" @click="inc">+</button>
-              <span v-if="visitDate" class="field-text">该日期余 {{ remaining }} 张，单笔限购 {{ MAX_QTY }} 张</span>
+              <span v-if="visitDate" class="field-text">该日期余 {{ remaining }} 张，{{ typeId === 'GROUP' ? '团体票单笔 10-30 张' : `单笔限购 ${qtyRange.max} 张` }}</span>
             </div>
           </section>
 

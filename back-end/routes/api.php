@@ -24,6 +24,7 @@ Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/logout', [AuthController::class, 'logout']);
 Route::get('/area', [AreaController::class, 'index']);
+Route::get('/park/items', [\App\Http\Controllers\ParkItemController::class, 'index']);   // F17：公开在售园内项目
 Route::get('/reviews', [ReviewController::class, 'index']);   // F16：公开最新游园评价
 Route::get('/enums', fn () => \App\Support\ok([
     'orderStatus' => ['待支付', '已支付', '已使用', '退款中', '已退款', '已取消'],
@@ -49,7 +50,12 @@ Route::middleware('auth.session')->group(function () {
     Route::get('/tickets/order/{orderId}', [TicketController::class, 'byOrder']);
     Route::get('/refunds/mine', [RefundController::class, 'mine']);
     Route::post('/refunds', [RefundController::class, 'requestRefund']);
+    Route::delete('/refunds/{id}', [RefundController::class, 'withdraw']);   // F04：游客撤回待审核申请
     Route::post('/reviews', [ReviewController::class, 'store']);                     // F16：游园评价（已检票门票）
+
+    // 园内项目（F17：游客购买，需持当日门票）
+    Route::post('/park/orders', [\App\Http\Controllers\ParkItemController::class, 'buy']);
+    Route::get('/park/orders/my', [\App\Http\Controllers\ParkItemController::class, 'myOrders']);
 
     // 票务员
     Route::post('/tickets/check', [TicketController::class, 'check'])->middleware('auth.role:operator');
@@ -69,6 +75,11 @@ Route::middleware('auth.session')->group(function () {
         Route::post('/ticket-types', [AdminController::class, 'saveType']);
         Route::put('/ticket-types/{id}', [AdminController::class, 'saveType']);
         Route::delete('/ticket-types/{id}', [AdminController::class, 'deleteType']);
+
+        Route::get('/park-items', [AdminController::class, 'parkItems']);
+        Route::post('/park-items', [AdminController::class, 'saveParkItem']);
+        Route::put('/park-items/{id}', [AdminController::class, 'saveParkItem']);
+        Route::delete('/park-items/{id}', [AdminController::class, 'deleteParkItem']);
 
         Route::get('/open-days', [AdminController::class, 'openDays']);
         Route::put('/open-days/{id}', [AdminController::class, 'saveOpenDay']);

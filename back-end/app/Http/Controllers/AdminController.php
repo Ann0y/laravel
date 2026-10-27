@@ -125,6 +125,46 @@ class AdminController extends Controller
         return ok(null, '已删除（逻辑删除）');
     }
 
+    // ---------- 园内项目（F17） ----------
+    public function parkItems()
+    {
+        $list = \App\Models\ParkItem::where('del_flag', 0)
+            ->orderBy('item_code')
+            ->get()
+            ->map(fn ($i) => \App\Support\Formatter::parkItem($i))
+            ->values();
+
+        return ok(['list' => $list]);
+    }
+
+    public function saveParkItem(Request $request, ?int $id = null)
+    {
+        $data = $request->validate([
+            'itemCode' => 'required|string|max:20|unique:park_item,item_code' . ($id ? ",{$id}" : ''),
+            'name' => 'required|string|max:50',
+            'price' => 'required|numeric|min:0.01',
+            'description' => 'nullable|string|max:255',
+            'status' => 'required|in:在售,停售',
+        ], AuthController::messages(), AuthController::attributes());
+
+        $payload = [
+            'item_code' => $data['itemCode'], 'item_name' => $data['name'], 'price' => $data['price'],
+            'description' => $data['description'] ?? null, 'status' => $data['status'],
+        ];
+
+        $item = $id
+            ? tap(\App\Models\ParkItem::findOrFail($id))->update($payload)
+            : \App\Models\ParkItem::create($payload);
+
+        return ok(['id' => $item->id], '保存成功');
+    }
+
+    public function deleteParkItem(int $id)
+    {
+        \App\Models\ParkItem::where('id', $id)->update(['del_flag' => 1, 'status' => '停售']);
+        return ok(null, '已删除（逻辑删除）');
+    }
+
     // ---------- 开放日 ----------
     public function openDays(Request $request)
     {

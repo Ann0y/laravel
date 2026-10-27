@@ -101,7 +101,7 @@ class AuthController extends Controller
 
     public static function messages(): array
     {
-        return ['required' => ':attribute 为必填项', 'unique' => '该用户名已被注册', 'min' => ':attribute 至少 :min 位'];
+        return ['required' => ':attribute 为必填项', 'unique' => '该用户名已被注册', 'min' => ':attribute 至少 :min 位', 'max' => ':attribute 不能超过 :max'];
     }
 
     /** 校验消息中字段名的中文口径（避免英文属性名直达用户） */

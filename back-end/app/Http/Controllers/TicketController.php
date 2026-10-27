@@ -27,15 +27,28 @@ class TicketController extends Controller
 
     public function check(Request $request)
     {
-        $data = $request->validate(['ticketNo' => 'required|string|max:32']);
+        $data = $request->validate(['ticketNo' => 'required|string|max:32'], AuthController::messages(), AuthController::attributes());
 
-        $ticket = (new \App\Support\TicketingService())->checkTicket(trim($data['ticketNo']), app('authUser'));
+        $code = trim($data['ticketNo']);
+
+        // 双查询：先按入园门票核销；编码不存在时再尝试园内项目票核销（PI 前缀）
+        if (\App\Models\Ticket::where('ticket_no', $code)->exists()) {
+            $ticket = (new \App\Support\TicketingService())->checkTicket($code, app('authUser'));
+
+            return \App\Support\ok(['ticket' => [
+                'ticketNo' => $ticket->ticket_no,
+                'status' => $ticket->status,
+                'checkTime' => optional($ticket->check_time)->toISOString(),
+            ]], '核销成功，欢迎入园');
+        }
+
+        $itemTicket = (new \App\Support\ParkItemService())->checkItemTicket($code, app('authUser'));
 
         return \App\Support\ok(['ticket' => [
-            'ticketNo' => $ticket->ticket_no,
-            'status' => $ticket->status,
-            'checkTime' => optional($ticket->check_time)->toISOString(),
-        ]], '核销成功，欢迎入园');
+            'ticketNo' => $itemTicket->ticket_code,
+            'status' => $itemTicket->status,
+            'checkTime' => optional($itemTicket->check_time)->toISOString(),
+        ]], '项目核销成功，祝游玩愉快');
     }
 
     /** 管理员门票检索 */

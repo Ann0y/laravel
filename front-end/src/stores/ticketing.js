@@ -2,7 +2,12 @@ import { defineStore } from 'pinia'
 import { api } from '../api'
 import { useAuthStore } from './auth'
 
-const MAX_QTY = 5
+const MAX_QTY = 5 // 保留：普通票种的单笔限购口径（团体票为动态 10-30，见 qtyLimit）
+
+// 单笔购买数量区间：普通票 1-5 张，团体票 10-30 张（须 10 人成团，口径同后端 E1 校验）
+function qtyLimit(typeId) {
+  return typeId === 'GROUP' ? { min: 10, max: 30 } : { min: 1, max: 5 }
+}
 
 // 数据层：本地状态缓存来自后端接口（景区/票种/额度/订单）。
 // 库存校验、占额回补、订单状态机均由后端完成（对应需求文档 E1 与第 3 章）。
@@ -128,6 +133,11 @@ export const useTicketingStore = defineStore('ticketing', {
       })
       await this.loadOrders()
     },
+    // 撤回待审核的退票申请（撤回后订单状态按票态恢复）
+    async withdrawRefund(refundId) {
+      await api(`/refunds/${refundId}`, { method: 'DELETE' })
+      await this.loadOrders()
+    },
     // 演示辅助已移除：退票审核由管理员端接口完成（PATCH /api/refunds/{id}/audit）
     replaceOrder(order) {
       const i = this.orders.findIndex((x) => x.id === order.id)
@@ -137,4 +147,4 @@ export const useTicketingStore = defineStore('ticketing', {
   },
 })
 
-export { MAX_QTY }
+export { qtyLimit }

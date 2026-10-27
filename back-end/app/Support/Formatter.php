@@ -9,6 +9,8 @@ use App\Models\Ticket;
 use App\Models\TicketReview;
 use App\Models\SaleOrder;
 use App\Models\TicketStock;
+use App\Models\ParkItem;
+use App\Models\ParkItemOrder;
 
 /**
  * 出参格式化：数据库 snake_case → 前端 camelCase，口径与前端类型一致
@@ -125,6 +127,45 @@ class Formatter
             'soldCount' => $s->sold_count,
             'remaining' => max(0, $s->quota - $s->sold_count),
             'status' => $s->status,
+        ];
+    }
+
+    /** 园内项目订单（F17）：项目 + 项目票明细（核销码） */
+    public static function itemOrder(ParkItemOrder $o): array
+    {
+        return [
+            'id' => $o->id,
+            'orderNo' => $o->order_no,
+            'itemCode' => $o->item->item_code,
+            'itemName' => $o->item->item_name,
+            'description' => $o->item->description,
+            'visitDate' => $o->visit_date->toDateString(),
+            'quantity' => $o->quantity,
+            'unitPrice' => (float) $o->unit_price,
+            'totalAmount' => (float) $o->total_amount,
+            'status' => $o->status,
+            'payTime' => optional($o->pay_time)->toISOString(),
+            'createTime' => optional($o->create_time)->toISOString(),
+            'tickets' => $o->relationLoaded('tickets')
+                ? $o->tickets->map(fn ($t) => [
+                    'ticketCode' => $t->ticket_code,
+                    'status' => $t->status,
+                    'checkTime' => optional($t->check_time)->toISOString(),
+                ])->values()->all()
+                : [],
+        ];
+    }
+
+    /** 园内项目主数据（管理端） */
+    public static function parkItem(ParkItem $i): array
+    {
+        return [
+            'id' => $i->id,
+            'itemCode' => $i->item_code,
+            'name' => $i->item_name,
+            'price' => (float) $i->price,
+            'description' => $i->description,
+            'status' => $i->status,
         ];
     }
 }

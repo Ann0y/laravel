@@ -31,6 +31,7 @@ class TicketingService
             $types = TicketType::where('del_flag', 0)->get();
             $defaultQuotas = [
                 'ADULT' => 500, 'CHILD' => 200, 'STUDENT' => 200, 'SENIOR' => 150,
+                'FAMILY' => 200, 'GROUP' => 100, 'MILITARY' => 150,
             ];
 
             for ($i = 0; $i < 7; $i++) {
@@ -66,6 +67,16 @@ class TicketingService
         return DB::transaction(function () use ($visitor, $typeCode, $visitDate, $quantity, $channel, $operator, $payMethod) {
             $type = TicketType::where('type_code', $typeCode)->where('del_flag', 0)->first();
             $this->failUnless($type && $type->status === '在售', '该票种已停售，请重新选择');
+
+            // 单笔数量口径：普通票 1-5 张；团体票 10-30 张（起购人数限制）
+            $maxQty = $type->type_code === 'GROUP' ? 30 : 5;
+            $minQty = $type->type_code === 'GROUP' ? 10 : 1;
+            $this->failUnless(
+                $quantity >= $minQty && $quantity <= $maxQty,
+                $type->type_code === 'GROUP'
+                    ? "团体票需 10 人（含）以上成团，单笔限 10-30 张"
+                    : "该票种单笔限购 {$maxQty} 张",
+            );
 
             $day = OpenDay::where('open_date', $visitDate)->where('status', '开放')->first();
             $this->failUnless($day, '该日期闭园或未开放，请另选日期');
@@ -183,15 +194,19 @@ class TicketingService
         });
     }
 
-    /** 游客提交退票申请（仅游园日之前、未检票门票） */
+    /** 游客提交退票申请（仅游园日之前、未检票门票；同一票不允许多条在途申请） */
     public function requestRefund(Visitor $visitor, string $ticketNo, string $reason): RefundRecord
     {
         return DB::transaction(function () use ($visitor, $ticketNo, $reason) {
             $ticket = Ticket::where('ticket_no', $ticketNo)->lockForUpdate()->first();
             $this->failUnless($ticket, '未找到该门票', 404);
             $this->failUnless($ticket->order->visitor_id === $visitor->id, '无权操作该门票', 403);
-            $this->failUnless($ticket->visit_date->greaterThan(now()->startOfDay()), '游园日当天及之后不支持退票');
+            $this->failUnless($ticket->visit_date->greaterThan(now()->startOfDay()), '仅游园日之前可退票：当日票、已核销票与过期票不可退');
             $this->failUnless($ticket->status === '未检票', '该门票当前状态不可退票');
+            $this->failUnless(
+                !RefundRecord::where('ticket_id', $ticket->id)->where('audit_status', '待审核')->exists(),
+                '该门票已有待审核的退票申请，请先撤回或等待管理员处理',
+            );
 
             $order = $ticket->order;
             $this->failUnless(in_array($order->status, ['已支付', '已使用', '退款中']), '订单当前状态不支持退票');
@@ -207,6 +222,40 @@ class TicketingService
 
             $order->status = '退款中';
             $order->save();
+
+            return $record;
+        });
+    }
+
+    /** 游客撤回退票申请（仅本人、待审核中；撤回后按当前票态重算订单状态） */
+    public function withdrawRefund(Visitor $visitor, int $id): RefundRecord
+    {
+        return DB::transaction(function () use ($visitor, $id) {
+            $record = RefundRecord::whereKey($id)->lockForUpdate()->first();
+            $this->failUnless($record, '未找到该退票申请', 404);
+            $this->failUnless($record->visitor_id === $visitor->id, '无权操作该退票申请', 403);
+            $this->failUnless($record->audit_status === '待审核', '该退票申请已处理，无法撤回');
+
+            $record->audit_status = '已撤回';
+            $record->audit_time = now();
+            $record->save();
+
+            $ticket = Ticket::whereKey($record->ticket_id)->lockForUpdate()->first();
+            $order = SaleOrder::whereKey($ticket->order_id)->lockForUpdate()->first();
+
+            if ($order->status === '退款中') {
+                $ticketIds = $order->tickets()->pluck('id');
+                $pendingCount = RefundRecord::whereIn('ticket_id', $ticketIds)
+                    ->where('audit_status', '待审核')->count();
+
+                if ($pendingCount === 0) {
+                    // 无在途申请：恢复演示口径——有已核销票 → 已使用，否则已支付；全部已退款则已退款
+                    $order->status = $order->tickets()->where('status', '<>', '已退款')->count() === 0
+                        ? '已退款'
+                        : ($order->tickets()->where('status', '已检票')->count() > 0 ? '已使用' : '已支付');
+                    $order->save();
+                }
+            }
 
             return $record;
         });

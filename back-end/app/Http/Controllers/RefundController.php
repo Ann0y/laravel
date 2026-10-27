@@ -77,6 +77,23 @@ class RefundController extends Controller
         ], $record->audit_status === '已通过' ? '已通过，额度将自动回补' : '已驳回');
     }
 
+    /** 游客撤回本人待审核的退票申请（F04） */
+    public function withdraw(Request $request, int $id)
+    {
+        $user = app('authUser');
+        if ($user->role !== 'visitor') {
+            throw new ApiException('仅游客可撤回退票申请', 403);
+        }
+
+        $visitor = Visitor::where('user_id', $user->id)->firstOrFail();
+        $record = (new TicketingService())->withdrawRefund($visitor, $id);
+
+        return ok([
+            'id' => $record->id,
+            'auditStatus' => $record->audit_status,
+        ], '退票申请已撤回');
+    }
+
     public function mine(Request $request)
     {
         $user = app('authUser');

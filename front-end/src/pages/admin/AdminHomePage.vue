@@ -105,7 +105,17 @@ const money = (v) =>
     </header>
 
     <p v-if="error" class="err">{{ error }}</p>
-    <div v-if="loading && !data" class="loading muted">载入中…</div>
+    <div v-if="loading && !data" class="loading" aria-busy="true">
+      <!-- 骨架屏：与最终布局同形的占位，避免载入时页面塌陷 -->
+      <div class="metrics sk">
+        <div class="sk-box" v-for="i in 4" :key="i"></div>
+      </div>
+      <div class="sk-box tall"></div>
+      <div class="sk-row">
+        <div class="sk-box tall"></div>
+        <div class="sk-box tall"></div>
+      </div>
+    </div>
 
     <template v-if="data">
       <!-- F09 指标卡 -->
@@ -254,19 +264,22 @@ const money = (v) =>
   padding: 5px 16px;
   font: inherit;
   font-size: 13.5px;
+  font-weight: 500;
   color: var(--ink-2);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
 
 .filter-chip:hover {
   border-color: var(--ink-2);
+  color: var(--ink);
 }
 
 .filter-chip.active {
   border-color: var(--accent);
   background: var(--accent-soft);
   color: var(--accent-hover);
+  font-weight: 600;
 }
 
 .metrics {
@@ -277,10 +290,15 @@ const money = (v) =>
 }
 
 .m-card {
-  padding: 18px 22px;
+  padding: 20px 22px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+  border-top: 2px solid var(--border);
+}
+
+.m-card.hi {
+  border-top-color: var(--rose);
 }
 
 .m-label {
@@ -289,9 +307,10 @@ const money = (v) =>
 }
 
 .m-value {
-  font-size: 30px;
-  font-weight: 650;
+  font-size: 32px;
+  font-weight: 680;
   letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
 .m-unit {
@@ -329,12 +348,54 @@ const money = (v) =>
 .cb-head h2 {
   margin: 0;
   font-size: 15.5px;
+  font-weight: 640;
 }
 
 .chart-row {
   display: grid;
   grid-template-columns: 5fr 6fr;
   gap: 18px;
+}
+
+/* 骨架屏：与最终布局同形的占位 */
+.loading {
+  padding: 0;
+}
+
+.sk-box {
+  background: linear-gradient(90deg, #eef1ef 25%, #f6f8f7 50%, #eef1ef 75%);
+  background-size: 200% 100%;
+  animation: sk 1.4s ease infinite;
+  border-radius: var(--radius);
+  height: 96px;
+}
+
+.sk-box.tall {
+  height: 240px;
+  margin-bottom: 18px;
+}
+
+.sk-row {
+  display: grid;
+  grid-template-columns: 5fr 6fr;
+  gap: 18px;
+}
+
+.sk-row .sk-box {
+  margin-bottom: 18px;
+}
+
+@keyframes sk {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-box {
+    animation: none;
+    background: #eef1ef;
+  }
 }
 
 .r-metrics {

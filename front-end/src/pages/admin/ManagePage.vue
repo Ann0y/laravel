@@ -3,13 +3,15 @@ import { ref, computed, onMounted } from 'vue'
 import { api } from '../../api'
 import StatusChip from '../../components/StatusChip.vue'
 
-// F10 景区与票种管理 + F11 每日售票额度管理（开发日历 × 票种额度）
-const tab = ref('types') // types | days
+// F10 景区与票种管理 + F11 每日售票额度管理（开发日历 × 票种额度）+ F17 园内项目管理
+const tab = ref('types') // types | days | items
 
 const types = ref([])
 const days = ref([])
+const items = ref([])
 const typesLoading = ref(true)
 const daysLoading = ref(true)
+const itemsLoading = ref(true)
 const error = ref('')
 
 async function loadTypes() {
@@ -46,6 +48,7 @@ async function loadDays() {
 onMounted(() => {
   loadTypes()
   loadDays()
+  loadItems()
 })
 
 /* ---- 票种编辑 ---- */
@@ -149,6 +152,71 @@ async function saveDay(day) {
 
 const quotaPct = (s) => (s.quota ? Math.min(100, Math.round((s.soldCount / s.quota) * 100)) : 0)
 const typeSelling = computed(() => types.value.filter((t) => t.status === '在售').length)
+const itemSelling = computed(() => items.value.filter((i) => i.status === '在售').length)
+
+/* ---- 园内项目管理（F17） ---- */
+async function loadItems() {
+  try {
+    const data = await api('/park-items')
+    items.value = data.list
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    itemsLoading.value = false
+  }
+}
+
+const itemForm = ref(null)
+const itemError = ref('')
+const itemBusy = ref(false)
+
+function openItemForm(i = null) {
+  itemForm.value = i
+    ? { ...i }
+    : { id: null, itemCode: '', name: '', price: null, description: '', status: '在售' }
+  itemError.value = ''
+}
+
+async function saveItem() {
+  const f = itemForm.value
+  if (!f.itemCode.trim() || !f.name.trim() || !f.price) {
+    itemError.value = '请填写项目编码、名称与单价'
+    return
+  }
+  itemBusy.value = true
+  itemError.value = ''
+  try {
+    await api(f.id ? `/park-items/${f.id}` : '/park-items', {
+      method: f.id ? 'PUT' : 'POST',
+      body: {
+        itemCode: f.itemCode.trim(),
+        name: f.name.trim(),
+        price: Number(f.price),
+        description: f.description?.trim() || null,
+        status: f.status,
+      },
+    })
+    itemForm.value = null
+    loadItems()
+  } catch (e) {
+    itemError.value = e.message
+  } finally {
+    itemBusy.value = false
+  }
+}
+
+const confirmDeleteItem = ref(null)
+
+async function deleteItem() {
+  if (!confirmDeleteItem.value) return
+  try {
+    await api(`/park-items/${confirmDeleteItem.value.id}`, { method: 'DELETE' })
+    confirmDeleteItem.value = null
+    loadItems()
+  } catch (e) {
+    error.value = e.message
+  }
+}
 </script>
 
 <template>

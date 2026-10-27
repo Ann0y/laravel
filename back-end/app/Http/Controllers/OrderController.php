@@ -17,8 +17,8 @@ class OrderController extends Controller
         $data = $request->validate([
             'typeId' => 'required|string|max:20',
             'visitDate' => 'required|date|after_or_equal:today',
-            'quantity' => 'required|integer|min:1|max:5',
-        ]);
+            'quantity' => 'required|integer|min:1|max:30',
+        ], AuthController::messages(), AuthController::attributes());
 
         $user = app('authUser');
 

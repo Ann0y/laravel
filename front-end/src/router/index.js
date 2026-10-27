@@ -24,6 +24,7 @@ const routes = [
   // 游客端
   { path: '/', name: 'home', component: HomePage },
   { path: '/buy', name: 'buy', component: BuyPage, meta: { auth: true, roles: ['visitor'] } },
+  { path: '/extras', name: 'extras', component: () => import('../pages/ExtrasPage.vue'), meta: { auth: true, roles: ['visitor'] } },
   { path: '/orders', name: 'orders', component: OrdersPage, meta: { auth: true, roles: ['visitor'] } },
   { path: '/login', name: 'login', component: LoginPage },
   { path: '/account', name: 'account', component: AccountPage, meta: { auth: true } },

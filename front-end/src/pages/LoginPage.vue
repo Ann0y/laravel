@@ -136,9 +136,19 @@ function fillDemo() {
 
 .auth-aside {
   position: relative;
-  border-radius: 16px;
+  border-radius: var(--radius);
   overflow: hidden;
   min-height: 380px;
+  box-shadow: var(--shadow-card-hover);
+}
+
+.auth-aside::before {
+  /* 底部压暗渐变：保证引文在任意照片上都可读 */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(16, 22, 19, 0) 55%, rgba(16, 22, 19, 0.55) 100%);
+  pointer-events: none;
 }
 
 .auth-aside img {
@@ -158,7 +168,6 @@ function fillDemo() {
   color: #fff;
   font-size: 16.5px;
   font-weight: 500;
-  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45);
 }
 
 .auth-panel {
@@ -198,6 +207,7 @@ function fillDemo() {
   background: #fff;
   color: var(--ink);
   font-weight: 600;
+  box-shadow: 0 1px 3px rgba(28, 38, 31, 0.1);
 }
 
 form {
@@ -208,6 +218,7 @@ form {
 
 .demo-hint {
   margin: 18px 0 0;
+  padding-top: 16px;
   text-align: center;
   font-size: 13.5px;
   color: var(--ink-2);
@@ -216,6 +227,7 @@ form {
   justify-content: center;
   gap: 6px;
   flex-wrap: wrap;
+  border-top: 1px solid var(--border);
 }
 
 @media (max-width: 960px) {

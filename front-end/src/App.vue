@@ -31,6 +31,7 @@ const links = computed(() => {
   return [
     { to: '/', label: '首页' },
     { to: '/buy', label: '在线购票' },
+    { to: '/extras', label: '园内项目' },
     { to: '/orders', label: '我的订单' },
   ]
 })

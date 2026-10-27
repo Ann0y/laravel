@@ -37,6 +37,16 @@ body {
   padding: 0;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
 body {
   background: var(--bg);
   color: var(--ink);
@@ -64,6 +74,25 @@ button {
 
 .num {
   font-variant-numeric: tabular-nums;
+}
+
+/* 表格全局微调（页面内各自保留结构性样式） */
+tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+tbody tr:hover {
+  background: rgba(32, 38, 31, 0.028);
+}
+
+td {
+  vertical-align: middle;
+}
+
+/* 滚动条：与纸面同色的细轨道 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
 }
 
 .container {
@@ -250,7 +279,6 @@ h4 {
 :focus-visible {
   outline: none;
   box-shadow: 0 0 0 4px var(--accent-ring);
-  border-radius: 6px;
 }
 
 /* 页面切换过渡（尊重 reduced-motion） */

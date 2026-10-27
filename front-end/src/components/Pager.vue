@@ -68,22 +68,25 @@ const pages = computed(() => {
   min-width: 34px;
   height: 32px;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
+  border-radius: 999px;
   background: #fff;
   color: var(--ink-2);
   font: inherit;
+  font-variant-numeric: tabular-nums;
   font-size: 13.5px;
   cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .pager-num:hover:not(:disabled) {
   border-color: var(--ink-2);
+  color: var(--ink);
 }
 
 .pager-num.active {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent-hover);
+  border-color: transparent;
+  background: var(--accent);
+  color: #fff;
   cursor: default;
 }
 </style>

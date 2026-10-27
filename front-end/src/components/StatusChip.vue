@@ -25,10 +25,12 @@ const map = {
 .chip {
   display: inline-flex;
   align-items: center;
-  padding: 1px 10px;
+  padding: 2px 10px;
   border-radius: 999px;
   font-size: 12.5px;
-  line-height: 1.8;
+  font-weight: 500;
+  line-height: 1.7;
+  letter-spacing: 0.01em;
   white-space: nowrap;
 }
 

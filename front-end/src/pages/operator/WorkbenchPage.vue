@@ -124,10 +124,15 @@ store.ensure().catch(() => {})
 }
 
 .m-card {
-  padding: 18px 22px;
+  padding: 20px 22px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+  border-top: 2px solid var(--border);
+}
+
+.m-card.hi {
+  border-top-color: var(--accent);
 }
 
 .m-label {
@@ -136,9 +141,10 @@ store.ensure().catch(() => {})
 }
 
 .m-value {
-  font-size: 30px;
-  font-weight: 650;
+  font-size: 32px;
+  font-weight: 680;
   letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
 .m-unit {
@@ -162,12 +168,14 @@ store.ensure().catch(() => {})
   display: flex;
   flex-direction: column;
   gap: 6px;
-  transition: border-color 0.2s ease, transform 0.15s ease;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 .q-card:hover {
   border-color: var(--accent);
   transform: translateY(-2px);
+  box-shadow: var(--shadow-card-hover);
 }
 
 .q-title {
@@ -177,11 +185,13 @@ store.ensure().catch(() => {})
 
 .guide {
   padding: 20px 24px;
+  border-left: 3px solid var(--accent);
 }
 
 .guide h2 {
   margin: 0 0 10px;
   font-size: 16px;
+  font-weight: 640;
 }
 
 .guide ul {

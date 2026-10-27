@@ -207,6 +207,16 @@ async function doCancel(o) {
     busyOrder.value = null
   }
 }
+
+// 撤回退票申请（待审核中可撤回，订单状态随之恢复）
+async function doWithdraw(refundId) {
+  actionError.value = ''
+  try {
+    await store.withdrawRefund(refundId)
+  } catch (e) {
+    actionError.value = e.status === 401 ? '登录已过期，请重新登录后再操作' : e.message
+  }
+}
 </script>
 
 <template>
@@ -289,6 +299,13 @@ async function doCancel(o) {
                 </button>
                 <button v-if="canRefund(o, t)" class="link danger" @click="startRefund(t.ticketNo)">
                   申请退票
+                </button>
+                <button
+                  v-else-if="t.refund && t.refund.status === '待审核'"
+                  class="link danger"
+                  @click="doWithdraw(t.refund.id)"
+                >
+                  撤回申请
                 </button>
                 <!-- 游园评价（F16）：入口放在门票行，已检票可见 -->
                 <button v-if="canReview(t)" class="link review" @click="startReview(t)">
