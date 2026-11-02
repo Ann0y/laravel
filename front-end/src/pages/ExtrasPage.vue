@@ -7,7 +7,8 @@ import { weekdayLabel, shortDate } from '../mock/seed'
 
 // F17 园内项目：入园后单独购买的缆车 / 玻璃桥 / 游船等项目票（需持当日有效门票）
 const store = useTicketingStore()
-store.ensure().catch(() => {})
+// 项目票需要同日入园门票，进入页面同时拉取订单用于日期可用性判断
+store.refresh().catch(() => {})
 
 const items = ref([])
 const selItem = ref(null) // { itemCode, name, price, description }
@@ -22,6 +23,17 @@ const bought = ref(null) // 刚购买成功的订单（显示核销码）
 const myOrders = ref([])
 const myLoading = ref(true)
 
+// 可选日期必须同时满足：未开始 + 本人持有该日未退款门票（口径同后端）
+const admissionDates = computed(() => {
+  const set = new Set()
+  for (const o of store.orders) {
+    for (const t of o.tickets || []) {
+      if (t.status === '未检票' || t.status === '已检票') set.add(t.visitDate)
+    }
+  }
+  return set
+})
+
 const dateOptions = computed(() =>
   store.openDates
     .filter((d) => d !== store.openDates[0]) // 项目票仅可购买未开始的游园日期
@@ -30,7 +42,12 @@ const dateOptions = computed(() =>
       label: weekdayLabel(d),
       sub: shortDate(d),
       closed: !!store.stock[d]?.closed,
+      hasTicket: admissionDates.value.has(d),
     })),
+)
+
+const availableDates = computed(() =>
+  dateOptions.value.filter((d) => !d.closed && d.hasTicket).map((d) => d.date),
 )
 
 const total = computed(() => (selItem.value && visitDate.value ? selItem.value.price * quantity.value : 0))
@@ -41,9 +58,9 @@ async function pickItem(it) {
   selItem.value = it
   quantity.value = 1
   error.value = ''
-  if (!visitDate.value) {
-    const first = dateOptions.value.find((d) => !d.closed)
-    visitDate.value = first ? first.date : ''
+  // 默认选中第一个“有门票且开放”的日期；当前选中日期无门票则纠正
+  if (!availableDates.value.includes(visitDate.value)) {
+    visitDate.value = availableDates.value[0] || ''
   }
 }
 
@@ -99,7 +116,7 @@ onMounted(() => {
 <template>
   <div class="extras container">
     <h1>园内项目</h1>
-    <p class="muted page-sub">入园后可单独购买的游玩项目。购买需已完成当日入园门票（未退款）的预订；项目票售出后不可退改，游玩当日凭核销码在项目口核销。</p>
+    <p class="muted page-sub">入园后可单独购买的游玩项目。购买需已持有同一游玩日期的入园门票（未退款）；项目票售出后不可退改，游玩当日凭核销码在项目口核销。日期会按你持有的门票自动过滤。</p>
 
     <div v-if="bought" class="bought card">
       <h3>购买成功 🎉 {{ bought.itemName }} × {{ bought.quantity }}</h3>
@@ -141,15 +158,19 @@ onMounted(() => {
             v-for="d in dateOptions"
             :key="d.date"
             class="date-opt"
-            :class="{ active: visitDate === d.date, closed: d.closed }"
-            :disabled="d.closed"
+            :class="{ active: visitDate === d.date, closed: d.closed || !d.hasTicket }"
+            :disabled="d.closed || !d.hasTicket"
+            :title="!d.hasTicket ? '该日期没有你的有效入园门票，需先购买同日门票' : ''"
             @click="visitDate = d.date"
           >
             <span class="num">{{ d.label }}</span>
-            <span class="muted num">{{ d.sub }}</span>
+            <span class="muted num">{{ d.hasTicket ? d.sub : '无门票' }}</span>
           </button>
         </div>
       </div>
+      <p v-if="!availableDates.length" class="muted date-hint">
+        园内项目需持同日期的有效入园门票：你当前没有可购买的日期，请先购买对应日期的入园门票。
+      </p>
       <div class="row">
         <span class="label">数量</span>
         <span class="qty-group">
@@ -300,6 +321,11 @@ onMounted(() => {
 .date-opt.closed {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.date-hint {
+  margin: -4px 0 0;
+  font-size: 13px;
 }
 
 .qty-group {

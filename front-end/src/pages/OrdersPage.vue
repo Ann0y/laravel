@@ -2,8 +2,6 @@
 import { ref, computed } from 'vue'
 import StatusChip from '../components/StatusChip.vue'
 import QrMock from '../components/QrMock.vue'
-import LineChart from '../components/charts/LineChart.vue'
-import DonutChart from '../components/charts/DonutChart.vue'
 import { useTicketingStore } from '../stores/ticketing'
 import { todayStr } from '../mock/seed'
 
@@ -24,45 +22,15 @@ const orders = computed(() =>
 const stats = computed(() => {
   const today = todayStr()
   let activeTickets = 0
-  let spent = 0
-  let refunded = 0
   for (const o of store.orders) {
-    if (o.status === '已支付' || o.status === '已使用') spent += o.totalAmount
     for (const t of o.tickets) {
       if (t.status === '未检票' && o.visitDate >= today) activeTickets++
-      if (t.status === '已退款') refunded += t.unitPrice
     }
   }
   return {
     count: store.orders.length,
     activeTickets,
-    spent: spent - refunded,
   }
-})
-
-// 游客端数据可视化（F04 / E2 口径）：从本人订单聚合，不额外加后端接口
-const trend = computed(() => {
-  const map = {}
-  for (const o of store.orders) {
-    if (o.status !== '已支付' && o.status !== '已使用') continue
-    const day = (o.createTime || '').slice(0, 10)
-    if (!day) continue
-    map[day] = (map[day] || 0) + o.totalAmount
-  }
-  const days = Object.keys(map).sort().slice(-10)
-  return {
-    labels: days.map((d) => d.slice(5).replace('-', '/')),
-    series: [{ name: '消费金额', values: days.map((d) => map[d]) }],
-  }
-})
-
-const byType = computed(() => {
-  const map = {}
-  for (const o of store.orders) {
-    if (o.status !== '已支付' && o.status !== '已使用') continue
-    map[o.typeName] = (map[o.typeName] || 0) + o.totalAmount
-  }
-  return Object.entries(map).map(([name, value]) => ({ name, value }))
 })
 
 function stars(n) {
@@ -156,9 +124,11 @@ const refundError = ref('')
 function canRefund(o, t) {
   return (
     t.status === '未检票' &&
-    !t.refund &&
-    o.visitDate > todayStr() &&
-    o.status !== '退款中'
+    // 仅该票有待审核申请时禁止重复申请（已撤回 / 已驳回可重新申请，口径同后端）
+    !(t.refund && t.refund.status === '待审核') &&
+    // 游园日当天及之前可退，过期不可退（口径同后端）
+    o.visitDate >= todayStr() &&
+    ['已支付', '已使用', '退款中'].includes(o.status)
   )
 }
 
@@ -178,6 +148,41 @@ async function submitRefund() {
     refundFor.value = null
   } catch (e) {
     refundError.value = e.message
+  }
+}
+
+// 整单退款（已支付订单扩展）：一键申请该单全部未检票门票退款，统一走管理员审核
+function orderRefundableTickets(o) {
+  if (o.status !== '已支付' || o.visitDate < todayStr()) return []
+  return o.tickets.filter((t) => t.status === '未检票' && !(t.refund && t.refund.status === '待审核'))
+}
+
+function canOrderRefund(o) {
+  return orderRefundableTickets(o).length > 0
+}
+
+const orderRefundFor = ref(null) // 订单 id
+const orderReason = ref('')
+const orderRefundError = ref('')
+
+function startOrderRefund(o) {
+  orderRefundFor.value = o.id
+  orderReason.value = ''
+  orderRefundError.value = ''
+}
+
+async function submitOrderRefund(o) {
+  if (!orderReason.value.trim()) {
+    orderRefundError.value = '请填写退款原因'
+    return
+  }
+  try {
+    await store.requestOrderRefund(o.id, orderReason.value.trim())
+    orderRefundFor.value = null
+    actionError.value = ''
+  } catch (e) {
+    if (e.status === 401) actionError.value = '登录已过期，请重新登录后再操作'
+    else orderRefundError.value = e.message
   }
 }
 
@@ -217,13 +222,47 @@ async function doWithdraw(refundId) {
     actionError.value = e.status === 401 ? '登录已过期，请重新登录后再操作' : e.message
   }
 }
+
+// 删除订单记录（终态订单：已使用/已取消/已退款，逻辑删除仅用户端隐藏）
+const deletableStatus = ['已使用', '已取消', '已退款']
+function canDeleteOrder(o) {
+  return deletableStatus.includes(o.status)
+}
+const confirmDeleteOrder = ref(null) // 订单对象
+
+async function doDeleteOrder() {
+  const o = confirmDeleteOrder.value
+  if (!o) return
+  try {
+    await store.deleteOrder(o.id)
+    confirmDeleteOrder.value = null
+  } catch (e) {
+    confirmDeleteOrder.value = null
+    actionError.value = e.status === 401 ? '登录已过期，请重新登录后再操作' : e.message
+  }
+}
+
+// 删除自己的游园评价（F16 扩展）：物理删除后可对该门票重新评价
+const confirmDeleteReview = ref(null) // 票对象
+
+async function doDeleteReview() {
+  const t = confirmDeleteReview.value
+  if (!t) return
+  try {
+    await store.deleteReview(t.ticketNo)
+    confirmDeleteReview.value = null
+  } catch (e) {
+    confirmDeleteReview.value = null
+    actionError.value = e.status === 401 ? '登录已过期，请重新登录后再操作' : e.message
+  }
+}
 </script>
 
 <template>
   <div class="orders container">
     <h1>我的订单与门票</h1>
 
-    <div class="stats">
+    <div class="stats stats-2">
       <div class="stat card">
         <span class="stat-label">累计订单</span>
         <span class="stat-value num">{{ stats.count }}</span>
@@ -233,23 +272,6 @@ async function doWithdraw(refundId) {
         <span class="stat-label">在用门票</span>
         <span class="stat-value num">{{ stats.activeTickets }}</span>
         <span class="stat-unit">张</span>
-      </div>
-      <div class="stat card">
-        <span class="stat-label">累计消费</span>
-        <span class="stat-value num">¥{{ stats.spent }}</span>
-        <span class="stat-unit">已扣除退款</span>
-      </div>
-    </div>
-
-    <!-- 游客端数据可视化（F04）：本人消费趋势与票种占比 -->
-    <div v-if="store.orders.length && (trend.labels.length || byType.length)" class="charts">
-      <div class="chart card">
-        <h3 class="chart-title">消费趋势（按下单日）</h3>
-        <LineChart :labels="trend.labels" :series="trend.series" :height="220" unit="元" />
-      </div>
-      <div class="chart card">
-        <h3 class="chart-title">票种消费占比</h3>
-        <DonutChart :items="byType" center-label="消费" />
       </div>
     </div>
 
@@ -275,7 +297,7 @@ async function doWithdraw(refundId) {
       <article v-for="o in orders" :key="o.id" class="order card">
         <header class="o-head">
           <div class="o-id">
-            <span class="o-no num">{{ o.orderNo }}</span>
+            <span class="o-no">{{ o.typeName }}</span>
             <span class="o-date num">游园日期 {{ o.visitDate }}</span>
           </div>
           <div class="o-side">
@@ -349,6 +371,9 @@ async function doWithdraw(refundId) {
                   <template v-if="t.review">
                     <span class="stars num" aria-label="我的评分">{{ stars(t.review.rating) }}</span>
                     <span class="field-text">我的评价：{{ t.review.content || '（仅星级）' }}</span>
+                    <button class="link review-del" @click="confirmDeleteReview = t">
+                      删除评价
+                    </button>
                   </template>
                   <template v-else>
                     <button class="link" @click="startReview(t)">写评价</button>
@@ -429,19 +454,73 @@ async function doWithdraw(refundId) {
               <button class="btn btn-primary btn-sm" @click="submitReschedule(o)">确认改期</button>
               <button class="btn btn-ghost btn-sm" @click="reschedFor = null">取消</button>
             </template>
-            <button v-else class="btn btn-ghost btn-sm" @click="startReschedule(o)">改期</button>
+            <button class="btn btn-ghost btn-sm" @click="startReschedule(o)">改期</button>
+          </div>
+        </footer>
+
+        <!-- 删除订单记录（用户端 F04 扩展）：终态订单可从我的列表删除，管理端保留可查 -->
+        <footer v-else-if="canDeleteOrder(o)" class="o-foot">
+          <span class="field-text">该订单已是终态，可删除记录（仅从我的订单中隐藏，管理端保留可查）。</span>
+          <div class="o-foot-actions">
+            <button class="link danger" @click="confirmDeleteOrder = o">删除记录</button>
           </div>
         </footer>
         <p v-if="reschedError && reschedFor === o.id" class="err">{{ reschedError }}</p>
 
-        <p v-if="actionError && o.status === '待支付'" class="err">{{ actionError }}</p>
+        <!-- 整单退款（已支付订单扩展）：一键申请该单全部未检票门票退款，独立 footer 不影响改期 / 删除 -->
+        <footer v-if="canOrderRefund(o)" class="o-foot">
+          <span class="field-text">
+            整单退款：将一次性申请该单 {{ orderRefundableTickets(o).length }} 张未检票门票退款，审核通过后逐张回补额度，可逐张撤回。
+          </span>
+          <div class="o-foot-actions">
+            <template v-if="orderRefundFor === o.id">
+              <textarea
+                v-model="orderReason"
+                rows="2"
+                maxlength="255"
+                class="inline-textarea"
+                placeholder="请填写退款原因（必填）"
+              ></textarea>
+              <button class="btn btn-primary btn-sm" @click="submitOrderRefund(o)">确认申请</button>
+              <button class="btn btn-ghost btn-sm" @click="orderRefundFor = null">取消</button>
+            </template>
+            <button v-else class="link danger" @click="startOrderRefund(o)">整单退款</button>
+          </div>
+        </footer>
+        <p v-if="orderRefundError && orderRefundFor === o.id" class="err">{{ orderRefundError }}</p>
+
+        <p v-if="actionError && (o.status === '待支付' || canDeleteOrder(o))" class="err">{{ actionError }}</p>
       </article>
 
       <p v-if="!orders.length" class="muted no-match">该状态下暂无订单。</p>
       <p class="refund-rule field-text">
-        退票规则：仅游园日之前、未检票门票可申请退票，退款金额为票面价，审核通过后当日额度自动回补。
+        退款规则：游园日当天及之前的未检票门票可申请退票（过期票不可退），退款金额为票面价，审核通过后当日额度自动回补；已支付订单可在订单下方「整单退款」一键提交全部未检票门票的退款申请。
       </p>
     </template>
+
+    <!-- 删除订单记录确认 -->
+    <div v-if="confirmDeleteOrder" class="modal-mask" @click.self="confirmDeleteOrder = null">
+      <div class="modal card">
+        <h3>删除订单「{{ confirmDeleteOrder.orderNo }}」？</h3>
+        <p class="muted">删除为逻辑删除，仅从我的订单中移除；管理端保留记录可查，相关门票与评价数据不受影响。</p>
+        <div class="refund-actions">
+          <button class="btn btn-danger btn-sm" @click="doDeleteOrder">确认删除</button>
+          <button class="btn btn-ghost btn-sm" @click="confirmDeleteOrder = null">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 删除评价确认 -->
+    <div v-if="confirmDeleteReview" class="modal-mask" @click.self="confirmDeleteReview = null">
+      <div class="modal card">
+        <h3>删除该门票的游园评价？</h3>
+        <p class="muted">评价删除后不可恢复，之后可对该门票重新写评价。</p>
+        <div class="refund-actions">
+          <button class="btn btn-danger btn-sm" @click="doDeleteReview">确认删除</button>
+          <button class="btn btn-ghost btn-sm" @click="confirmDeleteReview = null">取消</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -487,23 +566,8 @@ async function doWithdraw(refundId) {
   color: var(--ink-3);
 }
 
-/* 游客端可视化面板 */
-.charts {
-  display: grid;
-  grid-template-columns: 1.6fr 1fr;
-  gap: 16px;
-  margin-bottom: 22px;
-}
-
-.chart {
-  padding: 16px 18px;
-}
-
-.chart-title {
-  margin: 0 0 8px;
-  font-size: 14.5px;
-  font-weight: 600;
-  color: var(--ink-2);
+.stats-2 {
+  grid-template-columns: repeat(2, 1fr);
 }
 
 /* 评价（F16） */
@@ -578,6 +642,22 @@ async function doWithdraw(refundId) {
   padding: 5px 8px;
   font: inherit;
   font-size: 14px;
+}
+
+.inline-textarea {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+  min-width: 14rem;
+}
+
+.inline-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .filters {
@@ -700,6 +780,33 @@ async function doWithdraw(refundId) {
   font-size: 13px;
 }
 
+/* 评价删除入口（F16 扩展）：与星级并排，红色次级操作 */
+.link.review-del {
+  color: var(--rose);
+  font-size: 13.5px;
+}
+
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 35, 31, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+  padding: 20px;
+}
+
+.modal {
+  max-width: 460px;
+  width: 100%;
+  padding: 22px;
+}
+
+.modal h3 {
+  margin: 0 0 14px;
+}
+
 .t-detail {
   margin-top: 12px;
   padding: 16px;
@@ -808,10 +915,6 @@ async function doWithdraw(refundId) {
 
 @media (max-width: 767px) {
   .stats {
-    grid-template-columns: 1fr;
-  }
-
-  .charts {
     grid-template-columns: 1fr;
   }
 

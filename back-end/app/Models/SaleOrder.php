@@ -13,7 +13,7 @@ class SaleOrder extends Model
     protected $fillable = [
         'order_no', 'visitor_id', 'type_id', 'visit_date', 'quantity', 'unit_price',
         'total_amount', 'channel', 'pay_method', 'pay_time', 'operator_id', 'status',
-        'cancel_time', 'refund_time',
+        'cancel_time', 'refund_time', 'del_flag',
     ];
 
     protected function casts(): array

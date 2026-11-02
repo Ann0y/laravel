@@ -67,4 +67,25 @@ class ReviewController extends Controller
 
         return ok(Formatter::review($review), '评价提交成功，感谢你的反馈');
     }
+
+    /**
+     * 游客删除自己的评价：物理删除后 ticket_id 唯一约束自然放开，该门票可重新评价。
+     */
+    public function destroy(int $id)
+    {
+        $user = app('authUser');
+        if ($user->role !== 'visitor') {
+            throw new ApiException('仅游客可以删除评价', 403);
+        }
+
+        $visitor = Visitor::where('user_id', $user->id)->firstOrFail();
+        $review = TicketReview::findOrFail($id);
+        if ($review->visitor_id !== $visitor->id) {
+            throw new ApiException('无权删除该评价', 403);
+        }
+
+        $review->delete();
+
+        return ok(null, '评价已删除，该门票可重新评价');
+    }
 }

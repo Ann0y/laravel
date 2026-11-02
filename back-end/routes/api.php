@@ -38,6 +38,7 @@ Route::get('/enums', fn () => \App\Support\ok([
 // 需登录
 Route::middleware('auth.session')->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
+    Route::put('/auth/profile', [AuthController::class, 'profile']);
     Route::put('/auth/password', [AuthController::class, 'password']);
 
     // 订单与门票
@@ -47,11 +48,14 @@ Route::middleware('auth.session')->group(function () {
     Route::post('/orders/{id}/pay', [OrderController::class, 'pay']);
     Route::post('/orders/{id}/cancel', [OrderController::class, 'cancel']);
     Route::post('/orders/{id}/reschedule', [OrderController::class, 'reschedule']);  // F03 扩展：门票改期
+    Route::post('/orders/{id}/refund', [RefundController::class, 'requestOrderRefund']); // 订单整单退款申请（已支付 → 退款中）
     Route::get('/tickets/order/{orderId}', [TicketController::class, 'byOrder']);
     Route::get('/refunds/mine', [RefundController::class, 'mine']);
     Route::post('/refunds', [RefundController::class, 'requestRefund']);
     Route::delete('/refunds/{id}', [RefundController::class, 'withdraw']);   // F04：游客撤回待审核申请
     Route::post('/reviews', [ReviewController::class, 'store']);                     // F16：游园评价（已检票门票）
+    Route::delete('/reviews/{id}', [ReviewController::class, 'destroy']);            // F16 扩展：游客删除自己的评价
+    Route::delete('/orders/{id}', [OrderController::class, 'destroy']);              // F04 扩展：游客删除自己的订单记录（逻辑删除）
 
     // 园内项目（F17：游客购买，需持当日门票）
     Route::post('/park/orders', [\App\Http\Controllers\ParkItemController::class, 'buy']);

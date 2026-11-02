@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import sideImg from '../assets/images/login-side.jpg'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -31,17 +32,8 @@ async function submit() {
         name: name.value.trim(),
       })
     }
-    // 员工登录直达本端工作台，不停留公共首页（管理员 / 票务员无购票职责）
-    const role = auth.user?.role
-    if (route.query.redirect) {
-      router.push(route.query.redirect)
-    } else if (role === 'admin') {
-      router.push('/admin')
-    } else if (role === 'operator') {
-      router.push('/operator')
-    } else {
-      router.push('/')
-    }
+    // 登录成功后统一进入首页（员工同样先看公共首页，可从导航进入各自工作台）
+    router.push('/')
   } catch (e) {
     error.value = e.message
   } finally {
@@ -54,6 +46,21 @@ function fillDemo() {
   username.value = 'demo'
   password.value = 'demo123456'
 }
+
+// 演示快捷登录：管理员一键直达管理端（演示账号 admin / admin123）
+const quickBusy = ref(false)
+async function quickLoginAdmin() {
+  error.value = ''
+  quickBusy.value = true
+  try {
+    await auth.login('admin', 'admin123')
+    router.push('/admin')
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    quickBusy.value = false
+  }
+}
 </script>
 
 <template>
@@ -61,7 +68,7 @@ function fillDemo() {
     <div class="login-grid container">
       <aside class="auth-aside">
         <img
-          src="https://picsum.photos/seed/qinglan-forest/900/1200"
+          :src="sideImg"
           alt="青岚谷森林步道（示意图片）"
         />
         <p class="aside-quote">峡谷、栈道与森林，都在四十分钟车程内。</p>
@@ -106,14 +113,25 @@ function fillDemo() {
             </div>
 
             <p v-if="error" class="err">{{ error }}</p>
+            <p v-if="route.query.reason === 'password'" class="notice">
+              密码已修改，请使用新密码重新登录。
+            </p>
             <button type="submit" class="btn btn-primary btn-block" :disabled="submitting">
               {{ submitting ? '提交中…' : mode === 'login' ? '登录' : '注册并登录' }}
             </button>
           </form>
 
           <p class="demo-hint">
-            演示账号 <b>demo</b> 密码 <b>123456</b>
-            <button class="link" @click="fillDemo">一键填入</button>
+            <span class="demo-row">
+              游客演示 <b>demo</b> / <b>demo123456</b>
+              <button class="link" @click="fillDemo">一键填入</button>
+            </span>
+            <span class="demo-row">
+              管理员演示 <b>admin</b> / <b>admin123</b>
+              <button class="link" :disabled="quickBusy" @click="quickLoginAdmin">
+                {{ quickBusy ? '登录中…' : '一键登录' }}
+              </button>
+            </span>
           </p>
         </div>
       </div>
@@ -216,18 +234,33 @@ form {
   gap: 14px;
 }
 
-.demo-hint {
-  margin: 18px 0 0;
+.notice {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft, #eef6f0);
+  color: var(--accent-hover);
+  font-size: 13.5px;
+}
+
+.demo-hint {  margin: 18px 0 0;
   padding-top: 16px;
   text-align: center;
   font-size: 13.5px;
   color: var(--ink-2);
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.demo-row {
+  display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   flex-wrap: wrap;
-  border-top: 1px solid var(--border);
 }
 
 @media (max-width: 960px) {

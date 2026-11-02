@@ -107,10 +107,8 @@ class TicketingService
                 'status' => '待支付',
             ]);
 
-            // 窗口渠道：提交即视为支付成功并出票（需求文档 3.2）
-            if ($channel === '窗口') {
-                $this->payOrder($order);
-            }
+            // 提交即支付出票（线上 / 窗口统一口径，不再有“待支付”环节）
+            $this->payOrder($order);
 
             return $order->refresh()->loadMissing('tickets');
         });
@@ -201,7 +199,7 @@ class TicketingService
             $ticket = Ticket::where('ticket_no', $ticketNo)->lockForUpdate()->first();
             $this->failUnless($ticket, '未找到该门票', 404);
             $this->failUnless($ticket->order->visitor_id === $visitor->id, '无权操作该门票', 403);
-            $this->failUnless($ticket->visit_date->greaterThan(now()->startOfDay()), '仅游园日之前可退票：当日票、已核销票与过期票不可退');
+            $this->failUnless($ticket->visit_date->greaterThanOrEqualTo(now()->startOfDay()), '游园日已过，过期门票不可退票');
             $this->failUnless($ticket->status === '未检票', '该门票当前状态不可退票');
             $this->failUnless(
                 !RefundRecord::where('ticket_id', $ticket->id)->where('audit_status', '待审核')->exists(),
@@ -224,6 +222,41 @@ class TicketingService
             $order->save();
 
             return $record;
+        });
+    }
+
+    /** 整单退款：游客对已支付订单一键提交退票申请（全部可退未检票票逐张登记，统一走 F13 审核） */
+    public function requestOrderRefund(Visitor $visitor, SaleOrder $order, string $reason): array
+    {
+        return DB::transaction(function () use ($visitor, $order, $reason) {
+            $order = SaleOrder::whereKey($order->id)->lockForUpdate()->first();
+            $this->failUnless($order->visitor_id === $visitor->id, '无权操作该订单', 403);
+            $this->failUnless($order->status === '已支付', '仅已支付订单支持整单退款');
+            $this->failUnless($order->visit_date->greaterThanOrEqualTo(now()->startOfDay()), '游园日已过，该订单不可退款');
+
+            // 可退票：未检票且无待审核在途申请（已驳回 / 已撤回的旧申请不阻塞，可随整单重新提交）
+            $tickets = Ticket::where('order_id', $order->id)->where('status', '未检票')->lockForUpdate()->get();
+            $this->failUnless($tickets->isNotEmpty(), '该订单没有可退的门票（已检票 / 已退款门票不支持退款）');
+
+            $ticketIds = $tickets->pluck('id');
+            $this->failUnless(
+                RefundRecord::whereIn('ticket_id', $ticketIds)->where('audit_status', '待审核')->doesntExist(),
+                '该订单存在待审核的退票申请，请先撤回或等待管理员处理',
+            );
+
+            $records = $tickets->map(fn (Ticket $t) => RefundRecord::create([
+                'ticket_id' => $t->id,
+                'visitor_id' => $visitor->id,
+                'reason' => $reason,
+                'refund_amount' => $t->unit_price,
+                'apply_time' => now(),
+                'audit_status' => '待审核',
+            ]));
+
+            $order->status = '退款中';
+            $order->save();
+
+            return [$order, $records];
         });
     }
 
@@ -365,7 +398,16 @@ class TicketingService
 
     private function makeOrderNo(): string
     {
-        return 'SO' . now()->format('Ymd') . str_pad((string) (SaleOrder::whereDate('create_time', today())->count() + 1), 4, '0', STR_PAD_LEFT);
+        // 存在序号空洞（删除订单）时按计数生成的单号会撞 uk_order_no 唯一键，
+        // 因此在计数基础上递增探测，直到命中未占用的单号
+        $prefix = 'SO' . now()->format('Ymd');
+        $seq = SaleOrder::where('order_no', 'like', $prefix . '%')->count();
+        do {
+            $seq++;
+            $no = $prefix . str_pad((string) $seq, 4, '0', STR_PAD_LEFT);
+        } while (SaleOrder::where('order_no', $no)->exists());
+
+        return $no;
     }
 
     private function makeTicketNo(): string

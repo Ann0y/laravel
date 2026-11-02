@@ -10,17 +10,17 @@ const tab = ref('orders') // orders | tickets
 const ORDER_STATUS = ['待支付', '已支付', '已使用', '退款中', '已退款', '已取消']
 const TICKET_STATUS = ['未检票', '已检票', '已退款', '已过期']
 
-const f = ref({ orderNo: '', ticketNo: '', status: '', channel: '', visitDate: '' })
+const f = ref({ visitorName: '', ticketNo: '', status: '', channel: '', visitDate: '' })
 const page = ref({})
 const list = ref([])
 const loading = ref(true)
 const error = ref('')
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 5
 
 function cleanParams(pageNo = 1) {
   const p = { page: pageNo, pageSize: PAGE_SIZE }
-  if (f.value.orderNo) p.orderNo = f.value.orderNo
+  if (f.value.visitorName) p.visitorName = f.value.visitorName
   if (f.value.ticketNo) p.ticketNo = f.value.ticketNo
   if (f.value.status) p.status = f.value.status
   if (f.value.channel) p.channel = f.value.channel
@@ -47,7 +47,7 @@ function switchTab(t) {
   tab.value = t
   list.value = []
   page.value = {}
-  f.value = { orderNo: '', ticketNo: '', status: '', channel: '', visitDate: '' }
+  f.value = { visitorName: '', ticketNo: '', status: '', channel: '', visitDate: '' }
   fetchPage()
 }
 
@@ -65,6 +65,12 @@ function toggle(orderNo) {
 function fmtTime(iso) {
   return iso ? iso.replace('T', ' ').slice(0, 16) : '—'
 }
+
+// 门票张数：有票显示张数，无票（历史取消订单）显示占位符
+function ticketLabel(o) {
+  const n = o.tickets?.length ?? 0
+  return n > 0 ? `${n} 张` : '—'
+}
 </script>
 
 <template>
@@ -79,8 +85,8 @@ function fmtTime(iso) {
     <!-- 检索条 -->
     <form class="search card" @submit.prevent="search">
       <div v-if="tab === 'orders'" class="field">
-        <label>订单号</label>
-        <input v-model="f.orderNo" placeholder="支持模糊搜索" />
+        <label>游客姓名</label>
+        <input v-model="f.visitorName" placeholder="支持模糊搜索" />
       </div>
       <div v-if="tab === 'tickets'" class="field">
         <label>核销码</label>
@@ -152,7 +158,7 @@ function fmtTime(iso) {
               <td class="num muted">{{ fmtTime(o.createTime) }}</td>
               <td>
                 <button class="link" @click="toggle(o.orderNo)">
-                  {{ expanded[o.orderNo] ? '收起' : `${o.tickets?.length ?? 0} 张` }}
+                  {{ expanded[o.orderNo] ? '收起' : ticketLabel(o) }}
                 </button>
               </td>
             </tr>

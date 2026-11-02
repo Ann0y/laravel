@@ -76,11 +76,16 @@ class AdminController extends Controller
     public function deleteUser(int $id)
     {
         $user = SysUser::findOrFail($id);
-        $user->del_flag = 1;
-        $user->status = 0;
-        $user->save();
 
-        return ok(null, '已删除（逻辑删除）');
+        if ($user->id === app('authUser')->id) {
+            throw new ApiException('不能删除当前登录账号', 400);
+        }
+
+        // 物理删除：sys_user 外键级联删除 visitor / operator 档案，
+        // 再级联清除其订单、门票、退票记录、评价与项目票，删除后不可恢复
+        $user->delete();
+
+        return ok(null, '用户已物理删除，关联档案与业务数据已一并清除');
     }
 
     // ---------- 票种 ----------

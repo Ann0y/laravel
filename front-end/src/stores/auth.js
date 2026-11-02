@@ -67,5 +67,14 @@ export const useAuthStore = defineStore('auth', {
         body: { oldPassword, newPassword },
       })
     },
+    // 修改个人信息（姓名 / 用户名），同步本地镜像的用户信息
+    async updateProfile({ name, username }) {
+      const user = await api('/auth/profile', {
+        method: 'PUT',
+        body: { name, username },
+      })
+      persist.call(this, user)
+      return user
+    },
   },
 })

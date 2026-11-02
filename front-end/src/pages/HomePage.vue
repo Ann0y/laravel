@@ -4,6 +4,7 @@ import { useTicketingStore } from '../stores/ticketing'
 import { useAuthStore } from '../stores/auth'
 import { api } from '../api'
 import { todayStr } from '../mock/seed'
+import heroImg from '../assets/images/home-hero.jpg'
 
 const store = useTicketingStore()
 const auth = useAuthStore()
@@ -66,7 +67,7 @@ const stepList = [
       </div>
       <figure class="hero-figure">
         <img
-          src="https://picsum.photos/seed/qinglan-valley/1200/900"
+          :src="heroImg"
           alt="青岚谷峡谷与栈道（示意图片）"
         />
         <figcaption class="visually-hidden">青岚谷峡谷与栈道</figcaption>

@@ -117,7 +117,7 @@ async function doDelete() {
   if (!confirmDelete.value) return
   try {
     await api(`/users/${confirmDelete.value.id}`, { method: 'DELETE' })
-    flash.value = `账号 ${confirmDelete.value.username} 已删除（逻辑删除）`
+    flash.value = `账号 ${confirmDelete.value.username} 已物理删除`
     confirmDelete.value = null
     fetchUsers()
   } catch (e) {
@@ -259,7 +259,7 @@ async function doDelete() {
     <div v-if="confirmDelete" class="modal-mask" @click.self="confirmDelete = null">
       <div class="modal card">
         <h3>删除账号「{{ confirmDelete.username }}」？</h3>
-        <p class="muted">删除为逻辑删除并停用该账号；其历史订单与门票数据保留可查。</p>
+        <p class="muted">物理删除后不可恢复：该账号及其游客/票务员档案、全部订单、门票、退票记录、评价与项目票数据都会一并清除。</p>
         <div class="form-actions">
           <button class="btn btn-danger btn-sm" @click="doDelete">确认删除</button>
           <button class="btn btn-ghost btn-sm" @click="confirmDelete = null">取消</button>

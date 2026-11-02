@@ -39,6 +39,33 @@ class RefundController extends Controller
         ], '退票申请已提交，等待管理员审核');
     }
 
+    /** 整单退款（已支付订单）：游客一键提交该单全部未检票门票的退票申请，统一走 F13 审核 */
+    public function requestOrderRefund(Request $request, int $id)
+    {
+        $data = $request->validate([
+            'reason' => 'required|string|max:255',
+        ]);
+
+        $user = app('authUser');
+        if ($user->role !== 'visitor') {
+            throw new ApiException('仅游客可提交退款申请', 403);
+        }
+
+        $visitor = Visitor::where('user_id', $user->id)->firstOrFail();
+        /** @var \Illuminate\Support\Collection<int, RefundRecord> $records */
+        [$order, $records] = (new TicketingService())->requestOrderRefund(
+            $visitor, SaleOrder::findOrFail($id), trim($data['reason']),
+        );
+
+        return ok([
+            'orderId' => $order->id,
+            'orderStatus' => $order->status,
+            'refundCount' => $records->count(),
+            'refundAmount' => (float) $records->sum('refund_amount'),
+            'recordIds' => $records->pluck('id')->values(),
+        ], "整单退款申请已提交，共 {$records->count()} 张门票待审核");
+    }
+
     public function pending(Request $request)
     {
         $records = RefundRecord::with(['ticket.order.type', 'visitor.user'])

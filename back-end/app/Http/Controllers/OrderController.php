@@ -28,7 +28,7 @@ class OrderController extends Controller
                 $visitor, $data['typeId'], $data['visitDate'], $data['quantity'], '线上',
             );
 
-            return ok(['order' => \App\Support\Formatter::order($order)], '订单提交成功');
+            return ok(['order' => \App\Support\Formatter::order($order)], '购票成功，已出票');
         }
 
         if ($user->role === 'operator') {
@@ -71,6 +71,7 @@ class OrderController extends Controller
         $visitor = \App\Models\Visitor::where('user_id', $user->id)->firstOrFail();
 
         $query = \App\Models\SaleOrder::where('visitor_id', $visitor->id)
+            ->where('del_flag', 0)
             ->with(['type', 'tickets.latestRefund', 'visitor.user'])
             ->orderByDesc('create_time');
 
@@ -104,8 +105,8 @@ class OrderController extends Controller
             ->with(['type', 'tickets.latestRefund', 'visitor.user', 'operator.user'])
             ->orderByDesc('create_time');
 
-        if ($no = $request->input('orderNo')) {
-            $query->where('order_no', 'like', "%{$no}%");
+        if ($name = $request->input('visitorName')) {
+            $query->whereHas('visitor.user', fn ($q) => $q->where('name', 'like', "%{$name}%"));
         }
         if ($status = $request->input('status')) {
             $query->where('status', $status);
@@ -118,7 +119,8 @@ class OrderController extends Controller
         }
 
         return ok([
-            'page' => $page = $query->paginate(min((int) ($request->input('pageSize') ?: 10), 50))->appends($request->query()),
+            // 管理端订单检索固定每页 5 条（pageSize 上限也限制为 5）
+            'page' => $page = $query->paginate(min((int) ($request->input('pageSize') ?: 5), 5))->appends($request->query()),
             'list' => collect($page->items())->map(fn ($o) => \App\Support\Formatter::order($o))->values(),
         ]);
     }
@@ -141,6 +143,34 @@ class OrderController extends Controller
         $order = (new \App\Support\TicketingService())->cancelOrder($order);
 
         return ok(['order' => \App\Support\Formatter::order($order)], '订单已取消，当日额度已回补');
+    }
+
+    /**
+     * 删除自己的订单记录（逻辑删除）：仅终态订单（已使用/已取消/已退款）可删，
+     * 待支付与退款中的订单需先走取消/退款流程。管理端检索不受 del_flag 影响，保留可查。
+     */
+    public function destroy(int $id)
+    {
+        $user = app('authUser');
+        if ($user->role !== 'visitor') {
+            throw new ApiException('仅游客支持删除订单记录', 403);
+        }
+
+        $visitor = \App\Models\Visitor::where('user_id', $user->id)->firstOrFail();
+        $order = \App\Models\SaleOrder::findOrFail($id);
+        if ($order->visitor_id !== $visitor->id) {
+            throw new ApiException('无权操作该订单', 403);
+        }
+
+        $deletable = ['已使用', '已取消', '已退款'];
+        if (!in_array($order->status, $deletable, true)) {
+            throw new ApiException('待支付订单请先取消，退款中的订单请等待审核完成后再删除', 400);
+        }
+
+        $order->del_flag = 1;
+        $order->save();
+
+        return ok(null, '订单记录已删除（逻辑删除，管理端保留可查）');
     }
 
     /** 门票改期（游客）：整单未检票门票换游园日，吞吐同一套库存校验 */

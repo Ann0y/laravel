@@ -83,7 +83,8 @@ async function submitOrder() {
   submitting.value = true
   try {
     order.value = await store.createOrder(typeId.value, visitDate.value, quantity.value)
-    stage.value = 'pay'
+    // 提交即支付出票，直接进入完成页
+    stage.value = 'done'
   } catch (e) {
     error.value = e.message
   } finally {
@@ -221,7 +222,7 @@ async function cancelOrder() {
             {{ submitting ? '提交中…' : '提交订单' }}
           </button>
           <p class="field-text">
-            提交后可在「我的订单」中继续支付或取消；取消订单将自动回补当日额度。
+            提交即完成模拟支付并出票（每张门票生成独立核销码），可在「我的订单」中查看与申请退票。
           </p>
           <p v-if="error" class="err">{{ error }}</p>
         </div>

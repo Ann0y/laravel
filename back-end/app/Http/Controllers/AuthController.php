@@ -71,9 +71,25 @@ class AuthController extends Controller
         return ok(self::userPayload(app('authUser')));
     }
 
-    public function password(Request $request)
+    /** 修改个人信息：姓名 + 用户名（角色由管理员维护，不允许自助修改） */
+    public function profile(Request $request)
     {
+        $user = app('authUser');
+
         $data = $request->validate([
+            'username' => 'required|string|max:50|unique:sys_user,username,' . $user->id,
+            'name' => 'required|string|max:50',
+        ], self::messages(), self::attributes());
+
+        $user->username = trim($data['username']);
+        $user->name = trim($data['name']);
+        $user->save();
+
+        return ok(self::userPayload($user), '个人信息已更新');
+    }
+
+    public function password(Request $request)
+    {        $data = $request->validate([
             'oldPassword' => 'required|string',
             'newPassword' => 'required|string|min:6|max:100',
         ], self::messages());

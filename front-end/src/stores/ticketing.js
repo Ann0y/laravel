@@ -107,6 +107,15 @@ export const useTicketingStore = defineStore('ticketing', {
       })
       await this.loadOrders()
     },
+    // 整单退款（已支付订单）：一键申请该单全部未检票门票退款，逐张登记统一走审核
+    async requestOrderRefund(orderId, reason) {
+      const data = await api(`/orders/${orderId}/refund`, {
+        method: 'POST',
+        body: { reason },
+      })
+      await this.loadOrders()
+      return data
+    },
     // 门票改期（整单未检票门票迁移）：原日回补、新日占额（F03 扩展）
     async reschedule(orderId, visitDate) {
       const data = await api(`/orders/${orderId}/reschedule`, {
@@ -137,6 +146,28 @@ export const useTicketingStore = defineStore('ticketing', {
     async withdrawRefund(refundId) {
       await api(`/refunds/${refundId}`, { method: 'DELETE' })
       await this.loadOrders()
+    },
+    // 删除自己的订单记录（仅终态：已使用/已取消/已退款，后端做逻辑删除并校权限）
+    async deleteOrder(orderId) {
+      try {
+        await api(`/orders/${orderId}`, { method: 'DELETE' })
+        this.orders = this.orders.filter((x) => x.id !== orderId)
+      } catch (e) {
+        if (e.status === 401) useAuthStore().forceLogout()
+        throw e
+      }
+    },
+    // 删除自己的游园评价（物理删除，删后该门票可重新评价）
+    async deleteReview(ticketNo) {
+      const found = this.findTicket(ticketNo)
+      if (!found?.ticket?.review) return
+      try {
+        await api(`/reviews/${found.ticket.review.id}`, { method: 'DELETE' })
+        found.ticket.review = null
+      } catch (e) {
+        if (e.status === 401) useAuthStore().forceLogout()
+        throw e
+      }
     },
     // 演示辅助已移除：退票审核由管理员端接口完成（PATCH /api/refunds/{id}/audit）
     replaceOrder(order) {
